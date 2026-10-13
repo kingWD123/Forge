@@ -1,0 +1,32 @@
+[project]
+name = "forge-code"
+version = "0.1.0"
+description = "Agent de code en terminal construit avec Google ADK, qui compile son contexte et forge ses propres sous-agents."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "google-adk>=2.11.0",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "google-adk[eval]>=2.11.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+]
+
+[project.optional-dependencies]
+lint = ["ruff>=0.4.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

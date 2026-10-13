@@ -1,0 +1,33 @@
+"""Dépôt de travail de l'Atelier et confinement des chemins."""
+
+import os
+from pathlib import Path
+
+# Dossiers jamais parcourus par les outils.
+IGNORED_DIRS = {
+    ".git", ".venv", "venv", "node_modules", "__pycache__",
+    ".pytest_cache", ".ruff_cache", ".mypy_cache", ".tox", ".adk",
+}
+
+
+def workspace() -> Path:
+    """Dossier du dépôt sur lequel l'Atelier travaille."""
+    return Path(os.getenv("FORGE_WORKSPACE") or Path.cwd()).resolve()
+
+
+def resolve_in_workspace(path: str) -> Path:
+    """Résout un chemin relatif au dépôt ; refuse tout chemin qui en sort."""
+    root = workspace()
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"Chemin hors du dépôt de travail : {path}")
+    return resolved
+
+
+def is_secret(path: Path) -> bool:
+    """Fichiers exclus par défaut : .env et variantes (.env.local, ...), sauf .env.example."""
+    name = path.name
+    return (name == ".env" or name.startswith(".env.")) and name != ".env.example"
