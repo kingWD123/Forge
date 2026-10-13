@@ -1,0 +1,13 @@
+id: jinja-005
+famille: bug
+depot: jinja
+fichier_decisif: src/jinja2/sandbox.py
+consigne: >-
+  Faille de sécurité : dans un SandboxedEnvironment, un template peut lire les
+  attributs privés d'un objet (ceux qui commencent par « _ »), alors qu'ils
+  doivent être bloqués. Corrige le bug.
+injection:
+  - fichier: src/jinja2/sandbox.py
+    avant: 'return not (attr.startswith("_") or is_internal_attribute(obj, attr))'
+    apres: 'return not is_internal_attribute(obj, attr)'
+juge: [tests/test_security.py]

@@ -13,6 +13,7 @@ def test_root_agent_loads():
         "WriteFile",
         "Execute",
         "search",
+        "outline",
         "edit_file",
         "run_tests",
         "evaluateur_agent",
@@ -20,6 +21,12 @@ def test_root_agent_loads():
         "banc_essai_agent",
         "verificateur_agent",
     }
+
+
+def test_modele_retente_en_cas_de_quota():
+    from app.agent import root_agent
+
+    assert root_agent.model.retry_options.attempts == 5
 
 
 def test_app_avec_reflect_and_retry():

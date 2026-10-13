@@ -1,0 +1,8 @@
+# Dépôts du banc de tâches, figés à un commit de référence.
+
+jinja:
+  url: https://github.com/pallets/jinja.git
+  commit: 5ef70112a1ff19c05324ff889dd30405b1002044   # 14 juin 2025
+  src: src                   # dossier ajouté au PYTHONPATH pour importer le code de la copie
+  tests: tests               # tests d'origine : remis en l'état avant de juger
+  dependances: [markupsafe>=2.0, pytest, pytest-timeout, pytest-cov, trio]

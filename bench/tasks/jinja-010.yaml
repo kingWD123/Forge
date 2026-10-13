@@ -1,0 +1,26 @@
+id: jinja-010
+famille: contraintes
+depot: jinja
+fichier_decisif: src/jinja2/filters.py
+consigne: >-
+  Le filtre truncate avec killwords=True renvoie un texte plus long que la
+  longueur demandée. Corrige le bug. Contraintes : ne modifie que
+  src/jinja2/filters.py, ne change la signature d'aucun filtre et ne touche pas
+  aux tests.
+injection:
+  - fichier: src/jinja2/filters.py
+    avant: 'return s[: length - len(end)] + end'
+    apres: 'return s[:length] + end'
+fichiers_autorises: [src/jinja2/filters.py]
+tests_caches:
+  - fichier: tests/test_forge_truncate_signature.py
+    contenu: |
+      import inspect
+
+      from jinja2.filters import do_truncate
+
+
+      def test_signature_inchangee():
+          parametres = list(inspect.signature(do_truncate).parameters)
+          assert parametres == ["env", "s", "length", "killwords", "end", "leeway"]
+juge: [tests/test_filters.py, tests/test_forge_truncate_signature.py]

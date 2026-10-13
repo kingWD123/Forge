@@ -1,0 +1,1 @@
+{"tache": "jinja-004", "famille": "bug", "reussi": true, "juge": "28 passed in 0.19s", "suite_complete": "911 passed in 6.69s", "regressions": false, "fichiers_modifies": ["src/jinja2/utils.py"], "fichiers_interdits_modifies": [], "agent": {"appels": ["search", "ReadFile", "ReadFile", "ReadFile", "edit_file", "run_tests", "ReadFile"], "tokens": 29503}}

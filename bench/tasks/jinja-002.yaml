@@ -1,0 +1,12 @@
+id: jinja-002
+famille: bug
+depot: jinja
+fichier_decisif: src/jinja2/filters.py
+consigne: >-
+  Le filtre batch regroupe mal les éléments : {{ [1, 2, 3, 4, 5, 6]|batch(3)|list }}
+  devrait donner deux groupes de 3 éléments. Corrige le bug.
+injection:
+  - fichier: src/jinja2/filters.py
+    avant: 'if len(tmp) == linecount:'
+    apres: 'if len(tmp) == linecount - 1:'
+juge: [tests/test_filters.py]

@@ -1,0 +1,13 @@
+id: jinja-004
+famille: bug
+depot: jinja
+fichier_decisif: src/jinja2/utils.py
+consigne: >-
+  Avec select_autoescape(["html"]), le template « PAGE.HTML » n'est pas échappé
+  alors que « page.html » l'est. Le choix de l'échappement doit être insensible
+  à la casse. Corrige le bug.
+injection:
+  - fichier: src/jinja2/utils.py
+    avant: 'template_name = template_name.lower()'
+    apres: 'template_name = template_name'
+juge: [tests/test_utils.py]

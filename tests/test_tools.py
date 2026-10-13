@@ -1,10 +1,10 @@
-"""Tests des outils search et run_tests sur un petit dépôt temporaire."""
+"""Tests des outils search, outline et run_tests sur un petit dépôt temporaire."""
 
 import textwrap
 
 import pytest
 
-from app.tools import run_tests, search
+from app.tools import outline, run_tests, search
 
 
 @pytest.fixture
@@ -39,8 +39,36 @@ def depot(tmp_path, monkeypatch):
 
 def test_search_trouve_les_lignes(depot):
     result = search("def ajouter")
-    assert result["matches"] == ["calc.py:1: def ajouter(a, b):"]
+    assert result["matches"] == ["calc.py:1 (dans ajouter): def ajouter(a, b):"]
     assert result["truncated"] is False
+
+
+def test_search_indique_la_fonction_englobante(depot):
+    assert search("a - b")["matches"] == ["calc.py:2 (dans ajouter): return a - b  # bug"]
+
+
+def test_outline_donne_la_carte_du_fichier(depot):
+    (depot / "panier.py").write_text(textwrap.dedent("""\
+        class Panier:
+            def total(self):
+                return 0
+
+
+        def vide():
+            pass
+    """), encoding="utf-8")
+    result = outline("panier.py")
+    assert result["lines"] == 7
+    assert result["symbols"] == [
+        "class Panier  l.1-3",
+        "  def total  l.2-3",
+        "def vide  l.6-7",
+    ]
+
+
+def test_outline_refuse_les_fichiers_non_python(depot):
+    with pytest.raises(ValueError, match="search"):
+        outline("conftest.txt")
 
 
 def test_search_ignore_secrets_et_venv(depot):

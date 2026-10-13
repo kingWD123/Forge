@@ -1,0 +1,12 @@
+id: jinja-001
+famille: bug
+depot: jinja
+fichier_decisif: src/jinja2/filters.py
+consigne: >-
+  Le filtre filesizeformat affiche des tailles fausses : par exemple
+  {{ 1000000|filesizeformat }} devrait afficher « 1.0 MB ». Corrige le bug.
+injection:
+  - fichier: src/jinja2/filters.py
+    avant: 'unit = base ** (i + 2)'
+    apres: 'unit = base ** (i + 1)'
+juge: [tests/test_filters.py]

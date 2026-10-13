@@ -1,0 +1,57 @@
+id: jinja-006
+famille: fonctionnalite
+depot: jinja
+fichier_decisif: src/jinja2/filters.py
+consigne: >-
+  Ajoute une policy « round.method », avec « common » comme valeur par défaut.
+  Quand le filtre round est appelé sans méthode, il doit utiliser la méthode
+  définie dans environment.policies. Le comportement par défaut ne doit pas changer.
+injection: []
+tests_caches:
+  - fichier: tests/test_forge_round_policy.py
+    contenu: |
+      from jinja2 import Environment
+
+
+      def test_policy_par_defaut():
+          env = Environment()
+          assert env.policies["round.method"] == "common"
+          assert env.from_string("{{ 42.55|round }}").render() == "43.0"
+
+
+      def test_policy_utilisee_sans_methode():
+          env = Environment()
+          env.policies["round.method"] = "floor"
+          assert env.from_string("{{ 42.55|round(1) }}").render() == "42.5"
+
+
+      def test_methode_explicite_prioritaire():
+          env = Environment()
+          env.policies["round.method"] = "floor"
+          assert env.from_string("{{ 42.55|round(1, 'ceil') }}").render() == "42.6"
+solution:
+  - fichier: src/jinja2/defaults.py
+    avant: |
+      "truncate.leeway": 5,
+    apres: |
+      "truncate.leeway": 5,
+          "round.method": "common",
+  - fichier: src/jinja2/filters.py
+    avant: |-
+      def do_round(
+          value: float,
+          precision: int = 0,
+          method: 'te.Literal["common", "ceil", "floor"]' = "common",
+      ) -> float:
+    apres: |-
+      @pass_environment
+      def do_round(
+          environment: "Environment",
+          value: float,
+          precision: int = 0,
+          method: 'te.Literal["common", "ceil", "floor"] | None' = None,
+      ) -> float:
+  - fichier: src/jinja2/filters.py
+    avant: 'if method not in {"common", "ceil", "floor"}:'
+    apres: "if method is None:\n        method = environment.policies[\"round.method\"]\n    if method not in {\"common\", \"ceil\", \"floor\"}:"
+juge: [tests/test_forge_round_policy.py, tests/test_filters.py]

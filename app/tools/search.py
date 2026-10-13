@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 from ._workspace import IGNORED_DIRS, is_secret, resolve_in_workspace, workspace
+from .outline import enclosing_symbol, parse
 
 _MAX_LINE_CHARS = 200
 _MAX_FILE_BYTES = 1_000_000
@@ -18,7 +19,7 @@ def search(
     path: str = ".",
     glob: str = "",
     ignore_case: bool = False,
-    max_results: int = 50,
+    max_results: int = 20,
 ) -> dict:
     """Cherche une expression régulière dans les fichiers du dépôt.
 
@@ -30,9 +31,10 @@ def search(
       max_results: nombre maximal de lignes renvoyées.
 
     Returns:
-      matches : lignes trouvées au format "chemin:ligne: texte" ;
+      matches : lignes trouvées au format "chemin:ligne (dans fonction): texte" ;
+        la fonction ou classe qui contient la ligne est indiquée pour les fichiers .py ;
       total : nombre de correspondances trouvées ;
-      truncated : True si la liste a été coupée à max_results.
+      truncated : True si la liste a été coupée à max_results (affine alors la recherche).
     """
     root = workspace()
     target = resolve_in_workspace(path)
@@ -48,10 +50,30 @@ def search(
         matches = _search_python(regex, target, root, glob)
 
     return {
-        "matches": matches[:max_results],
+        "matches": _with_enclosing_symbol(root, matches[:max_results]),
         "total": len(matches),
         "truncated": len(matches) > max_results,
     }
+
+
+def _with_enclosing_symbol(root: Path, matches: list[str]) -> list[str]:
+    """Ajoute à chaque résultat d'un fichier .py la fonction qui le contient :
+    l'Atelier sait où il est sans relire le fichier."""
+    trees = {}   # chaque fichier n'est analysé qu'une fois
+    annotated = []
+    for match in matches:
+        rel, lineno, text = match.split(":", 2)
+        symbol = ""
+        if rel.endswith(".py"):
+            if rel not in trees:
+                try:
+                    trees[rel] = parse(root / rel)
+                except ValueError:
+                    trees[rel] = None   # fichier invalide : pas d'annotation
+            if trees[rel] is not None:
+                symbol = enclosing_symbol(trees[rel], int(lineno))
+        annotated.append(f"{rel}:{lineno} (dans {symbol}):{text}" if symbol else match)
+    return annotated
 
 
 def _format(rel: str, lineno: int, text: str) -> str:

@@ -1,0 +1,12 @@
+id: jinja-003
+famille: bug
+depot: jinja
+fichier_decisif: src/jinja2/runtime.py
+consigne: >-
+  Dans une boucle for, loop.revindex renvoie une valeur fausse : sur le dernier
+  élément il devrait valoir 1. Corrige le bug.
+injection:
+  - fichier: src/jinja2/runtime.py
+    avant: 'return self.length - self.index0'
+    apres: 'return self.length - self.index0 - 1'
+juge: [tests/test_core_tags.py]

@@ -1,0 +1,12 @@
+id: jinja-009
+famille: diagnostic_sortie_longue
+depot: jinja
+fichier_decisif: src/jinja2/compiler.py
+consigne: >-
+  Beaucoup de tests échouent depuis le dernier changement. Trouve la cause et
+  corrige-la.
+injection:
+  - fichier: src/jinja2/compiler.py
+    avant: 'return repr(concat(group))'
+    apres: 'return repr(concat(group).strip())'
+juge: [tests]

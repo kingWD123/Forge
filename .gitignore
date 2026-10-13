@@ -8,3 +8,5 @@ __pycache__/
 .forge/worktrees/
 .idea/
 .vscode/
+# Banc de tâches : dépôts clonés, copies de travail, environnements
+bench/work/
