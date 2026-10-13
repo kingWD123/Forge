@@ -62,8 +62,9 @@ def _format(rel: str, lineno: int, text: str) -> str:
 
 
 def _search_rg(pattern: str, target: Path, root: Path, glob: str, ignore_case: bool) -> list[str]:
-    cmd = ["rg", "--line-number", "--no-heading", "--color", "never", "--hidden",
-           "-g", "!.env", "-g", "!.env.*", "-g", ".env.example"]
+    # Seulement des exclusions ici : un filtre -g positif restreindrait la recherche
+    # à ce seul motif. Les fichiers de secrets sont écartés après coup (is_secret).
+    cmd = ["rg", "--line-number", "--no-heading", "--color", "never", "--hidden"]
     cmd += [arg for d in IGNORED_DIRS for arg in ("-g", f"!{d}/")]
     if glob:
         cmd += ["-g", glob]
@@ -78,7 +79,7 @@ def _search_rg(pattern: str, target: Path, root: Path, glob: str, ignore_case: b
     matches = []
     for line in proc.stdout.splitlines():
         m = re.match(r"^(.*?):(\d+):(.*)$", line)
-        if m:
+        if m and not is_secret(Path(m.group(1))):
             rel = Path(m.group(1)).as_posix().removeprefix("./")
             matches.append(_format(rel, int(m.group(2)), m.group(3)))
     return sorted(matches, key=_sort_key)

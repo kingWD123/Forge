@@ -3,17 +3,28 @@
 import os
 
 from google.adk.agents import LlmAgent
+from google.adk.apps import App
 from google.adk.environment import LocalEnvironment
+from google.adk.plugins import ReflectAndRetryToolPlugin
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.environment import EnvironmentToolset
 
 from . import prompt
 from .permissions import autoriser
-from .tools import run_tests, search, workspace
+from .tools import edit_file, run_tests, search, workspace
 from .sub_agents.banc_essai import banc_essai_agent
 from .sub_agents.evaluateur import evaluateur_agent
 from .sub_agents.forgeron import forgeron_agent
 from .sub_agents.verificateur import verificateur_agent
+
+
+class EnvironmentSansEditFile(EnvironmentToolset):
+    """Environment Toolset d'ADK sans son EditFile, remplacé par notre edit_file."""
+
+    async def get_tools(self, readonly_context=None):
+        tools = await super().get_tools(readonly_context)
+        return [tool for tool in tools if tool.name != "EditFile"]
+
 
 atelier = LlmAgent(
     model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
@@ -25,12 +36,13 @@ atelier = LlmAgent(
     ),
     instruction=prompt.ATELIER_PROMPT,
     tools=[
-        # ReadFile, EditFile, WriteFile, Execute, confinés au dépôt de travail.
-        EnvironmentToolset(
+        # ReadFile, WriteFile, Execute, confinés au dépôt de travail.
+        EnvironmentSansEditFile(
             environment=LocalEnvironment(working_dir=workspace()),
             max_output_chars=20_000,
         ),
         search,
+        edit_file,
         run_tests,
         AgentTool(agent=evaluateur_agent),
         AgentTool(agent=forgeron_agent),
@@ -42,3 +54,11 @@ atelier = LlmAgent(
 )
 
 root_agent = atelier
+
+# Quand un outil lève une erreur (bloc introuvable, syntaxe cassée...), ce plugin
+# renvoie l'erreur au modèle avec des consignes pour corriger son appel (3 essais).
+app = App(
+    name="app",
+    root_agent=atelier,
+    plugins=[ReflectAndRetryToolPlugin(max_retries=3, throw_exception_if_retry_exceeded=False)],
+)

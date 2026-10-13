@@ -10,7 +10,7 @@ def test_lectures_et_sous_agents_autorises(tool):
     assert decide(tool, {}, mode="ask")[0] == "allow"
 
 
-@pytest.mark.parametrize("tool", ["EditFile", "WriteFile"])
+@pytest.mark.parametrize("tool", ["edit_file", "WriteFile"])
 @pytest.mark.parametrize("mode, attendu", [("ask", "ask"), ("auto-edit", "allow"), ("auto", "allow")])
 def test_ecritures_selon_le_mode(tool, mode, attendu):
     assert decide(tool, {"path": "a.py"}, mode=mode)[0] == attendu

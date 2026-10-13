@@ -18,13 +18,15 @@ from typing import Any, Literal
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
+from .tools.edit_file import make_diff, prepare_edit
+
 Decision = Literal["allow", "ask", "deny"]
 
 # Outils sans effet de bord sur le dépôt.
 READ_TOOLS = {"ReadFile", "search", "run_tests"}
 # Sous-agents appelés comme outils : ils n'agissent qu'à travers leurs propres outils.
 AGENT_TOOLS = {"evaluateur_agent", "forgeron_agent", "banc_essai_agent", "verificateur_agent"}
-WRITE_TOOLS = {"EditFile", "WriteFile"}
+WRITE_TOOLS = {"edit_file", "WriteFile"}
 EXEC_TOOL = "Execute"
 
 # Commandes autorisées sans demander, si elles sont seules (pas de chaînage ni redirection).
@@ -90,10 +92,9 @@ def describe(tool_name: str, args: dict[str, Any]) -> str:
     """Texte montré à l'utilisateur quand on lui demande son accord."""
     if tool_name == EXEC_TOOL:
         return f"Exécuter la commande : {args.get('command', '')}"
-    if tool_name == "EditFile":
-        old = _shorten(args.get("old_string", ""))
-        new = _shorten(args.get("new_string", ""))
-        return f"Modifier {args.get('path', '?')} :\n  - {old}\n  + {new}"
+    if tool_name == "edit_file":
+        diff = make_diff(args.get("path", "?"), args.get("old_string", ""), args.get("new_string", ""))
+        return f"Modifier {args.get('path', '?')} :\n{diff}"
     if tool_name == "WriteFile":
         content = str(args.get("content", ""))
         return f"Créer {args.get('path', '?')} ({len(content.splitlines())} lignes)"
@@ -105,6 +106,14 @@ def _shorten(text: str, limit: int = 300) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
+def _edit_is_possible(args: dict[str, Any]) -> bool:
+    try:
+        prepare_edit(args.get("path", ""), args.get("old_string", ""), args.get("new_string", ""))
+        return True
+    except ValueError:
+        return False
+
+
 def autoriser(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
     """before_tool_callback : None laisse l'outil s'exécuter, un dict remplace sa réponse."""
     decision, reason = decide(tool.name, args)
@@ -112,6 +121,10 @@ def autoriser(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -
     if decision == "deny":
         return {"status": "error", "error": f"Refusé par les règles de sécurité : {reason}."}
     if decision == "allow":
+        return None
+
+    if tool.name == "edit_file" and not _edit_is_possible(args):
+        # Rien ne sera écrit : inutile de demander, l'outil renverra l'erreur au modèle.
         return None
 
     confirmation = tool_context.tool_confirmation
