@@ -22,7 +22,8 @@ async def executer(consigne: str) -> dict:
     session = await runner.session_service.create_session(app_name=app.name, user_id="bench")
     message = types.Content(role="user", parts=[types.Part(text=consigne)])
 
-    resultat = {"appels": [], "appels_modele": 0, "tokens_entree": 0, "tokens_sortie": 0, "reponse": ""}
+    resultat = {"appels": [], "appels_modele": 0, "tokens_entree": 0, "tokens_sortie": 0,
+                "tokens_en_cache": 0, "reponse": ""}
     try:
         async for event in runner.run_async(user_id="bench", session_id=session.id, new_message=message,
                                             run_config=RunConfig(max_llm_calls=MAX_APPELS_MODELE)):
@@ -31,6 +32,8 @@ async def executer(consigne: str) -> dict:
                 resultat["appels_modele"] += 1
                 resultat["tokens_entree"] += event.usage_metadata.prompt_token_count or 0
                 resultat["tokens_sortie"] += event.usage_metadata.candidates_token_count or 0
+                # Part des tokens d'entrée servie depuis le cache du modèle (facturée moins cher).
+                resultat["tokens_en_cache"] += event.usage_metadata.cached_content_token_count or 0
             if event.content and event.content.parts:
                 texte = "".join(part.text or "" for part in event.content.parts).strip()
                 if texte:

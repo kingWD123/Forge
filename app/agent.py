@@ -12,6 +12,7 @@ from google.adk.tools.environment import EnvironmentToolset
 from google.genai import types
 
 from . import prompt
+from .context import compiler, tronquer_sorties
 from .permissions import autoriser
 from .tools import edit_file, outline, run_tests, search, workspace
 from .sub_agents.banc_essai import banc_essai_agent
@@ -44,8 +45,9 @@ atelier = LlmAgent(
         # ReadFile, WriteFile, Execute, confinés au dépôt de travail.
         EnvironmentSansEditFile(
             environment=LocalEnvironment(working_dir=workspace()),
-            # Environ 200 lignes par lecture : on lit des plages ciblées, pas des fichiers entiers.
-            max_output_chars=8_000,
+            # Garde-fou large : la vraie coupe (début + fin, 8 000 caractères) est faite
+            # par tronquer_sorties, car celle d'ADK ne garde que le début.
+            max_output_chars=200_000,
         ),
         search,
         outline,
@@ -58,6 +60,10 @@ atelier = LlmAgent(
     ],
     # Lectures libres ; écritures et commandes soumises à l'accord de l'utilisateur.
     before_tool_callback=autoriser,
+    # Sorties trop longues coupées en gardant le début et la fin.
+    after_tool_callback=tronquer_sorties,
+    # Compilateur de contexte (FORGE_CONTEXT=on) : allège la requête avant chaque appel au modèle.
+    before_model_callback=compiler,
 )
 
 root_agent = atelier

@@ -3,6 +3,7 @@
 Usage (depuis la racine du projet) :
   python -m bench.run verifier [jinja-001 ...]   vérifie que chaque tâche est bien construite
   python -m bench.run lancer   [jinja-001 ...]   lance l'Atelier sur les tâches et note le résultat
+                                                 (--config A : sans Compilateur, --config B : avec)
   python -m bench.run web      jinja-001         prépare la tâche et ouvre l'interface adk web
   python -m bench.run juger    jinja-001         juge la tâche après son passage dans adk web
 
@@ -217,11 +218,19 @@ def verifier(taches: list[dict]) -> bool:
     return tout_ok
 
 
-def environnement_atelier(tache: dict, copie: Path, mode: str) -> dict:
+# Configurations du protocole expérimental (dossier, section 7).
+CONFIGURATIONS = {
+    "A": {"FORGE_CONTEXT": "off"},   # agent de code simple
+    "B": {"FORGE_CONTEXT": "on"},    # A + Compilateur de contexte
+}
+
+
+def environnement_atelier(tache: dict, copie: Path, mode: str, config: str = "A") -> dict:
     """Variables pour que l'Atelier travaille sur la copie, avec l'environnement Python du dépôt."""
     _, python = preparer_depot(tache["depot"])
     return {
         **environnement_de_test(tache, copie),
+        **CONFIGURATIONS[config],
         "FORGE_WORKSPACE": str(copie),
         "FORGE_PERMISSION_MODE": mode,
         "FORGE_TEST_PYTHON": str(python),
@@ -230,9 +239,9 @@ def environnement_atelier(tache: dict, copie: Path, mode: str) -> dict:
     }
 
 
-def lancer_atelier(tache: dict, copie: Path) -> dict:
+def lancer_atelier(tache: dict, copie: Path, config: str) -> dict:
     """Lance l'Atelier dans un processus séparé, en mode auto, sur la copie du dépôt."""
-    env = environnement_atelier(tache, copie, mode="auto")
+    env = environnement_atelier(tache, copie, mode="auto", config=config)
     debut = time.time()
     proc = subprocess.run([sys.executable, "-m", "bench.atelier_runner", tache["consigne"]],
                           cwd=RACINE, env=env, capture_output=True, text=True,
@@ -246,16 +255,17 @@ def lancer_atelier(tache: dict, copie: Path) -> dict:
     return resultat
 
 
-def evaluer(taches: list[dict]) -> None:
+def evaluer(taches: list[dict], config: str) -> None:
     """Lance l'Atelier sur chaque tâche, juge, et enregistre une ligne par tâche."""
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     RESULTATS.mkdir(exist_ok=True)
-    fichier_resultats = RESULTATS / f"{run_id}.jsonl"
+    fichier_resultats = RESULTATS / f"{run_id}-{config}.jsonl"
+    print(f"Configuration {config} : {CONFIGURATIONS[config]}")
     statuts = []
     for tache in taches:
         print(f"> {tache['id']} ({tache['famille']})...", flush=True)
         copie = preparer_copie(tache, TRAVAIL / "runs" / run_id)
-        agent = lancer_atelier(tache, copie)
+        agent = lancer_atelier(tache, copie, config)
         jugement = juger(tache, copie)
 
         # « erreur » : l'Atelier a été interrompu (quota, panne du modèle...) sans finir.
@@ -268,8 +278,8 @@ def evaluer(taches: list[dict]) -> None:
             statut = "echec"
         statuts.append(statut)
 
-        ligne = {"tache": tache["id"], "famille": tache["famille"], "statut": statut,
-                 **jugement, "agent": agent}
+        ligne = {"tache": tache["id"], "famille": tache["famille"], "configuration": config,
+                 "statut": statut, **jugement, "agent": agent}
         with fichier_resultats.open("a", encoding="utf-8") as f:
             f.write(json.dumps(ligne, ensure_ascii=False) + "\n")
         print(f"  {statut.upper():<7} juge : {jugement['juge']}"
@@ -287,21 +297,21 @@ def evaluer(taches: list[dict]) -> None:
           f"  ->  {fichier_resultats}")
 
 
-def web(tache: dict, mode: str, port: int) -> None:
+def web(tache: dict, mode: str, port: int, config: str) -> None:
     """Prépare la tâche et ouvre l'interface adk web, réglée sur la copie du dépôt.
 
     Il reste à coller la consigne dans l'interface, puis à lancer `juger` pour le résultat.
     """
     copie = preparer_copie(tache, TRAVAIL / "web")
     print(f"\nTâche {tache['id']} prête dans : {copie}")
-    print(f"Mode d'autorisation : {mode}")
+    print(f"Mode d'autorisation : {mode}  |  configuration {config} : {CONFIGURATIONS[config]}")
     print("\nConsigne à coller dans l'interface (agent « app ») :\n")
     print(f"    {tache['consigne']}\n")
     print(f"Quand l'Atelier a fini : python -m bench.run juger {tache['id']}")
     print(f"Ouvre http://localhost:{port} (Ctrl+C pour arrêter le serveur)\n", flush=True)
     adk = Path(sys.executable).parent / "adk"
     subprocess.run([str(adk), "web", "--port", str(port)], cwd=RACINE,
-                   env=environnement_atelier(tache, copie, mode))
+                   env=environnement_atelier(tache, copie, mode, config))
 
 
 def juger_copie_web(tache: dict) -> None:
@@ -326,6 +336,8 @@ def main() -> None:
                         help="mode d'autorisation pour `web` (auto par défaut)")
     parser.add_argument("--port", type=int, default=8001,
                         help="port de l'interface pour `web` (8001 par défaut, pour ne pas gêner un adk web déjà lancé)")
+    parser.add_argument("--config", default="A", choices=sorted(CONFIGURATIONS),
+                        help="configuration à mesurer pour `lancer` et `web` : A (sans Compilateur), B (avec)")
     args = parser.parse_args()
     taches = charger_taches(args.taches)
 
@@ -333,13 +345,13 @@ def main() -> None:
         if len(taches) != 1:
             sys.exit(f"`{args.commande}` prend exactement une tâche, par exemple : jinja-001")
         if args.commande == "web":
-            web(taches[0], args.mode, args.port)
+            web(taches[0], args.mode, args.port, args.config)
         else:
             juger_copie_web(taches[0])
     elif args.commande == "verifier":
         sys.exit(0 if verifier(taches) else 1)
     else:
-        evaluer(taches)
+        evaluer(taches, args.config)
 
 
 if __name__ == "__main__":
