@@ -4,30 +4,23 @@ import os
 
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
-from google.adk.environment import LocalEnvironment
 from google.adk.models import Gemini
 from google.adk.plugins import ReflectAndRetryToolPlugin
 from google.adk.tools.agent_tool import AgentTool
-from google.adk.tools.environment import EnvironmentToolset
 from google.genai import types
 
 from . import prompt
-from .context import compiler, tronquer_sorties
+from .context import compiler, noter_decision, tronquer_sorties
 from .permissions import autoriser
-from .tools import edit_file, outline, run_tests, search, workspace
 from .sub_agents.banc_essai import banc_essai_agent
+from .sub_agents.diagnostiqueur import diagnostiqueur
 from .sub_agents.evaluateur import evaluateur_agent
+from .sub_agents.explorateur import explorateur
 from .sub_agents.forgeron import forgeron_agent
+from .sub_agents.migrateur import migrateur
+from .sub_agents.redacteur_tests import redacteur_tests
 from .sub_agents.verificateur import verificateur_agent
-
-
-class EnvironmentSansEditFile(EnvironmentToolset):
-    """Environment Toolset d'ADK sans son EditFile, remplacé par notre edit_file."""
-
-    async def get_tools(self, readonly_context=None):
-        tools = await super().get_tools(readonly_context)
-        return [tool for tool in tools if tool.name != "EditFile"]
-
+from .tools import edit_file, outils_fichiers, outline, run_tests, search
 
 atelier = LlmAgent(
     model=Gemini(
@@ -43,16 +36,19 @@ atelier = LlmAgent(
     instruction=prompt.ATELIER_PROMPT,
     tools=[
         # ReadFile, WriteFile, Execute, confinés au dépôt de travail.
-        EnvironmentSansEditFile(
-            environment=LocalEnvironment(working_dir=workspace()),
-            # Garde-fou large : la vraie coupe (début + fin, 8 000 caractères) est faite
-            # par tronquer_sorties, car celle d'ADK ne garde que le début.
-            max_output_chars=200_000,
-        ),
+        outils_fichiers(),
         search,
         outline,
         edit_file,
         run_tests,
+        # Configuration B : l'Atelier note ses décisions dans l'état structuré de la tâche.
+        *([noter_decision] if os.getenv("FORGE_CONTEXT", "off").lower() == "on" else []),
+        # Spécialistes.
+        AgentTool(agent=explorateur),
+        AgentTool(agent=diagnostiqueur),
+        AgentTool(agent=migrateur),
+        AgentTool(agent=redacteur_tests),
+        # Mécanique de la forge (semaines 7 et 8).
         AgentTool(agent=evaluateur_agent),
         AgentTool(agent=forgeron_agent),
         AgentTool(agent=banc_essai_agent),

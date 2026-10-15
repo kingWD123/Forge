@@ -3,8 +3,9 @@
 Appliqué dans un before_model_callback, en suivant l'ordre anti « lost in the middle »
 (ce qui compte en tête et à la fin, le reste au milieu) :
 
-1. En tête : le contexte compilé (assemblage.py) — contraintes de la consigne,
-   code des symboles visés, tests associés, carte du fichier principal, fichiers liés.
+1. En tête : le contexte compilé (assemblage.py) — état de la tâche (objectif,
+   contraintes épinglées, fichiers modifiés, décisions : etat.py), code des symboles
+   visés, tests associés, carte du fichier principal, fichiers liés.
    Les fichiers sont choisis par l'index du dépôt (indexer.py, selection.py).
 2. Au milieu : l'historique, allégé par le masquage des sorties d'outils inutiles.
    L'appel reste visible, mais son contenu est remplacé par une ligne :
@@ -16,7 +17,7 @@ Appliqué dans un before_model_callback, en suivant l'ordre anti « lost in the 
    servir depuis son cache, moins cher (même idée qu'OpenCode).
    Filet de sécurité : si la requête dépasse SEUIL_URGENCE caractères, seules les
    GARDER_EN_URGENCE dernières sorties restent entières.
-3. À la fin : rappel de l'objectif et des contraintes.
+3. À la fin : rappel de l'objectif et de toutes les contraintes épinglées.
 
 Seule la requête est modifiée : l'historique enregistré dans la session reste intact.
 Activé par FORGE_CONTEXT=on (configuration B) ; désactivé par défaut (configuration A).
@@ -30,7 +31,8 @@ from google.adk.models import LlmRequest
 from google.genai import types
 
 from ..tools import workspace
-from .assemblage import contexte_compile, extraire_contraintes
+from .assemblage import contexte_compile
+from .etat import PRIORITE_AU_DERNIER_MESSAGE, fichiers_touches_dans, mettre_a_jour
 
 GARDER_RECENTES = 10       # les N dernières sorties restent entières (valeur de l'étude JetBrains)
 PAQUET = 5                 # les vieilles sorties sont masquées 5 par 5
@@ -47,25 +49,22 @@ def compiler(callback_context: CallbackContext, llm_request: LlmRequest) -> None
         return None
     contents = llm_request.contents
     indice = derniere_consigne(contents)
-    consigne = texte_de(contents[indice]) if indice is not None else ""
+    message = texte_de(contents[indice]) if indice is not None else ""
 
-    bloc = contexte_compile(workspace(), consigne, fichiers_modifies(contents)) if consigne else ""
+    # État structuré : gardé dans la session, mis à jour avec le dernier message et les éditions.
+    state = callback_context.state if callback_context is not None else {}
+    etat = mettre_a_jour(state, message, fichiers_touches_dans(contents, ECRITURES))
+
+    bloc = contexte_compile(workspace(), etat)
     if bloc:
         llm_request.append_instructions([bloc])
     masquer_sorties_inutiles(contents)
-    rappeler_objectif(contents)
+    rappeler_objectif(contents, etat)
     return None
 
 
 def texte_de(content: types.Content) -> str:
     return " ".join(p.text for p in content.parts or [] if p.text).strip()
-
-
-def fichiers_modifies(contents: list[types.Content]) -> list[str]:
-    """Fichiers déjà modifiés par l'agent dans la session, dans l'ordre."""
-    chemins = [p.function_call.args.get("path") for c in contents for p in c.parts or []
-               if p.function_call and p.function_call.name in ECRITURES and p.function_call.args]
-    return list(dict.fromkeys(c for c in chemins if c))
 
 
 # ------------------------------------------------------------------ masquage
@@ -145,20 +144,24 @@ def decrire(nom: str, args: dict) -> str:
 
 # ------------------------------------------------------------------- objectif
 
-def rappeler_objectif(contents: list[types.Content]) -> None:
-    """Ajoute la consigne de l'utilisateur, et ses contraintes, à la fin du dernier message,
-    une fois que le travail a commencé (au moins un appel d'outil depuis la consigne)."""
+def rappeler_objectif(contents: list[types.Content], etat: dict) -> None:
+    """Ajoute l'objectif et TOUTES les contraintes épinglées à la fin du dernier message,
+    une fois que le travail a commencé (au moins un appel d'outil depuis le dernier message)."""
     consigne_index = derniere_consigne(contents)
-    if consigne_index is None or consigne_index == len(contents) - 1:
+    if consigne_index is None or consigne_index == len(contents) - 1 or not etat["objectif"]:
         return
-    consigne = texte_de(contents[consigne_index])
     dernier = contents[-1]
     if dernier.role != "user":
         return
-    texte = f"[Rappel de l'objectif — consigne de l'utilisateur] {consigne}"
-    contraintes = extraire_contraintes(consigne)
-    if contraintes:
-        texte += "\n[Contraintes à respecter] " + " ".join(contraintes)
+    # Balise explicite : sans elle, le modèle imite ce format et recopie le rappel dans ses réponses.
+    lignes = [f"Objectif : {etat['objectif']}"]
+    if etat["dernier_message"] and etat["dernier_message"] != etat["objectif"]:
+        lignes.append(f"Dernier message de l'utilisateur : {etat['dernier_message']}")
+    if etat["contraintes"]:
+        lignes.append("Contraintes à respecter : " + " ".join(etat["contraintes"]))
+        lignes.append(PRIORITE_AU_DERNIER_MESSAGE)
+    texte = ("<rappel_systeme>\nNote automatique pour toi, ne la recopie pas dans ta réponse.\n"
+             + "\n".join(lignes) + "\n</rappel_systeme>")
     contents[-1] = types.Content(role="user", parts=[*dernier.parts, types.Part(text=texte)])
 
 

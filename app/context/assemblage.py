@@ -1,8 +1,9 @@
 """Assemblage du bloc de contexte compilé : compression et ordonnancement.
 
 Le bloc est placé en tête de la requête (instruction système), dans cet ordre de priorité :
-  0. instructions du projet (AGENTS.md, s'il existe : le standard de Codex et d'autres agents)
-  1. contraintes de la consigne        (en tête : le modèle lit mieux le début)
+  0. état de la tâche : objectif, contraintes épinglées, fichiers modifiés, décisions (etat.py)
+     (en tête : le modèle lit mieux le début)
+  1. instructions du projet (AGENTS.md, s'il existe)
   2. code des symboles visés, en entier (le fichier principal d'abord)
   3. tests associés
   4. carte du fichier principal        (signatures seulement : compression)
@@ -11,9 +12,9 @@ Si le budget est dépassé, les dernières sections sont coupées.
 Le code est relu sur le disque à chaque appel : les numéros de ligne sont toujours à jour.
 """
 
-import re
 from pathlib import Path
 
+from .etat import afficher
 from .indexer import indexer
 from .selection import selectionner
 
@@ -22,30 +23,22 @@ MAX_LIGNES_SYMBOLE = 60
 MAX_SIGNATURES_VOISIN = 15
 MAX_INSTRUCTIONS_PROJET = 3_000
 
-_MOTS_DE_CONTRAINTE = re.compile(
-    r"\bne\b|\bn['’]|\bsans\b|\bjamais\b|\binterdit|\bcontrainte|\buniquement\b|\bseulement\b"
-    r"|\bdoit\b|\bdoivent\b", re.IGNORECASE)
 
-
-def extraire_contraintes(consigne: str) -> list[str]:
-    """Les phrases de la consigne qui posent une règle (« ne modifie que... », « sans... »)."""
-    phrases = re.split(r"(?<=[.!?])\s+|\n", consigne)
-    return [p.strip() for p in phrases if p.strip() and _MOTS_DE_CONTRAINTE.search(p)]
-
-
-def contexte_compile(racine: Path, consigne: str, fichiers_modifies: list[str]) -> str:
+def contexte_compile(racine: Path, etat: dict) -> str:
     index = indexer(racine)
-    selection = selectionner(index, consigne, fichiers_modifies)
-    contraintes = extraire_contraintes(consigne)
+    # On cherche les symboles dans l'objectif ET dans le dernier message (qui peut préciser).
+    texte = f"{etat['objectif']}\n{etat['dernier_message']}"
+    selection = selectionner(index, texte, etat["fichiers_touches"])
+    section_etat = afficher(etat)
     instructions = instructions_du_projet(racine)
-    if not selection.principal and not contraintes and not instructions:
+    if not selection.principal and not section_etat and not instructions:
         return ""
 
     sections = []
+    if section_etat:
+        sections.append(section_etat)
     if instructions:
         sections.append("## Instructions du projet (AGENTS.md)\n" + instructions)
-    if contraintes:
-        sections.append("## Contraintes à respecter\n" + "\n".join(f"- {c}" for c in contraintes))
     if selection.symboles:
         extraits = [extrait(racine, chemin, symbole) for chemin, symbole in selection.symboles]
         sections.append("## Code à examiner en priorité\n" + "\n\n".join(extraits))
@@ -62,7 +55,8 @@ def contexte_compile(racine: Path, consigne: str, fichiers_modifies: list[str]) 
 
     entete = ("# Contexte compilé par FORGE CODE\n"
               "Extraits du dépôt choisis pour cette tâche et relus avant chaque appel : "
-              "les numéros de ligne sont à jour.")
+              "les numéros de ligne sont à jour. Ce contexte est pour toi : sers-t'en, "
+              "mais ne le recopie pas dans tes réponses.")
     return respecter_budget([entete, *sections])
 
 
@@ -90,9 +84,10 @@ def respecter_budget(sections: list[str]) -> str:
     """Ajoute les sections dans l'ordre tant qu'elles tiennent ; coupe la première qui déborde."""
     texte = ""
     for section in sections:
-        reste = BUDGET - len(texte)
+        separateur = "\n\n" if texte else ""
+        reste = BUDGET - len(texte) - len(separateur)
         if reste <= 200:
             break
         bloc = section if len(section) <= reste else section[:reste] + "\n… (coupé : budget atteint)"
-        texte += ("\n\n" if texte else "") + bloc
+        texte += separateur + bloc
     return texte

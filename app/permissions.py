@@ -23,9 +23,10 @@ from .tools.edit_file import make_diff, prepare_edit
 Decision = Literal["allow", "ask", "deny"]
 
 # Outils sans effet de bord sur le dépôt.
-READ_TOOLS = {"ReadFile", "search", "outline", "run_tests"}
+READ_TOOLS = {"ReadFile", "search", "outline", "run_tests", "noter_decision"}
 # Sous-agents appelés comme outils : ils n'agissent qu'à travers leurs propres outils.
-AGENT_TOOLS = {"evaluateur_agent", "forgeron_agent", "banc_essai_agent", "verificateur_agent"}
+AGENT_TOOLS = {"evaluateur_agent", "forgeron_agent", "banc_essai_agent", "verificateur_agent",
+               "explorateur", "diagnostiqueur", "migrateur", "redacteur_tests"}
 WRITE_TOOLS = {"edit_file", "WriteFile"}
 EXEC_TOOL = "Execute"
 

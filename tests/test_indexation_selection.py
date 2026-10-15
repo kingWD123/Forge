@@ -7,8 +7,9 @@ from google.adk.models import LlmRequest
 from google.genai import types
 
 from app.context import assemblage
-from app.context.assemblage import contexte_compile, extraire_contraintes
+from app.context.assemblage import contexte_compile
 from app.context.compiler import compiler
+from app.context.etat import extraire_contraintes, mettre_a_jour
 from app.context.indexer import indexer
 from app.context.selection import morceaux, mots_de, selectionner
 
@@ -81,34 +82,41 @@ def test_fichier_modifie_pendant_la_session_prioritaire(depot):
     assert selection.principal == "src/boutique/remises.py"
 
 
+def etat_pour(message):
+    return mettre_a_jour({}, message, [])
+
+
 def test_contraintes_extraites():
     consigne = "Corrige le bug. Ne modifie que panier.py et ne touche pas aux tests. Merci."
     assert extraire_contraintes(consigne) == ["Ne modifie que panier.py et ne touche pas aux tests."]
 
 
-def test_bloc_ordonne_contraintes_code_tests_carte_voisins(depot):
-    bloc = contexte_compile(depot, "Corrige calculer_total sans toucher aux tests.", [])
-    positions = [bloc.index(t) for t in ("## Contraintes", "## Code à examiner", "## Tests associés",
+def test_bloc_ordonne_etat_code_tests_carte_voisins(depot):
+    bloc = contexte_compile(depot, etat_pour("Corrige calculer_total sans toucher aux tests."))
+    positions = [bloc.index(t) for t in ("## État de la tâche", "## Code à examiner", "## Tests associés",
                                          "## Carte de src/boutique/panier.py", "## Fichier lié")]
     assert positions == sorted(positions)
+    assert "- Corrige calculer_total sans toucher aux tests." in bloc        # contrainte épinglée
     assert "return sum(p * q for p, q in zip(prix, quantites))" in bloc   # code du symbole visé
 
 
-def test_bloc_vide_sans_rien_a_selectionner(depot):
-    assert contexte_compile(depot, "Bonjour.", []) == ""
+def test_bloc_avec_seulement_l_etat_sans_selection(depot):
+    bloc = contexte_compile(depot, etat_pour("Bonjour."))
+    assert "Objectif : Bonjour." in bloc and "## Code à examiner" not in bloc
+    assert contexte_compile(depot, etat_pour("")) == ""
 
 
-def test_agents_md_en_tete_du_bloc(depot):
+def test_agents_md_apres_l_etat(depot):
     (depot / "AGENTS.md").write_text("Lance les tests avec pytest -q.", encoding="utf-8")
-    bloc = contexte_compile(depot, "Corrige calculer_total sans toucher aux tests.", [])
-    assert bloc.index("## Instructions du projet (AGENTS.md)") < bloc.index("## Contraintes")
+    bloc = contexte_compile(depot, etat_pour("Corrige calculer_total sans toucher aux tests."))
+    assert bloc.index("## État de la tâche") < bloc.index("## Instructions du projet (AGENTS.md)")
     assert "Lance les tests avec pytest -q." in bloc
-    assert "Instructions du projet" in contexte_compile(depot, "Bonjour.", [])   # même sans sélection
+    assert "Instructions du projet" in contexte_compile(depot, etat_pour(""))   # même sans objectif
 
 
 def test_budget_respecte(depot, monkeypatch):
     monkeypatch.setattr(assemblage, "BUDGET", 400)
-    bloc = contexte_compile(depot, "Corrige calculer_total sans toucher aux tests.", [])
+    bloc = contexte_compile(depot, etat_pour("Corrige calculer_total sans toucher aux tests."))
     assert len(bloc) <= 400 + len("\n… (coupé : budget atteint)")
 
 

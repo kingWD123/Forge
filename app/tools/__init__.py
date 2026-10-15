@@ -8,8 +8,9 @@ Tous travaillent dans le dépôt de travail (FORGE_WORKSPACE, sinon le dossier c
 
 from ._workspace import workspace
 from .edit_file import edit_file
+from .fichiers import outils_fichiers
 from .outline import outline
 from .run_tests import run_tests
 from .search import search
 
-__all__ = ["edit_file", "outline", "run_tests", "search", "workspace"]
+__all__ = ["edit_file", "outils_fichiers", "outline", "run_tests", "search", "workspace"]

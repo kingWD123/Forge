@@ -18,7 +18,10 @@ demande : un test qui échoue signale un bug dans le code. Si beaucoup de tests
 échouent, cherche une cause commune dans le code plutôt que de les traiter un
 par un.
 
-N'appelle pas les sous-agents (évaluateur, forgeron, banc d'essai, vérificateur) :
+Tu peux confier une partie du travail à un spécialiste : explorateur,
+diagnostiqueur, migrateur, redacteur_tests. Il ne voit pas ta conversation :
+donne-lui une demande précise et complète.
+N'appelle pas l'évaluateur, le forgeron, le banc d'essai ni le vérificateur :
 ils ne sont pas encore opérationnels.
 
 # Tes outils
