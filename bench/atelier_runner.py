@@ -1,7 +1,9 @@
-"""Lance l'Atelier sur une consigne et affiche un résumé JSON sur la dernière ligne.
+"""Lance l'Atelier (ou l'explorateur seul) sur une consigne et affiche un résumé JSON
+sur la dernière ligne.
 
 Appelé par bench/run.py dans un processus séparé : le dépôt de travail
 (FORGE_WORKSPACE) et le mode d'autorisation sont fixés par les variables d'environnement.
+Usage : python -m bench.atelier_runner "consigne" [explorateur]
 """
 
 import asyncio
@@ -9,17 +11,23 @@ import json
 import sys
 
 from google.adk.agents.run_config import RunConfig
+from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from app.agent import app
+from app.sub_agents.explorateur import explorateur
 
 MAX_APPELS_MODELE = 60
 
 
-async def executer(consigne: str) -> dict:
-    runner = InMemoryRunner(app=app)
-    session = await runner.session_service.create_session(app_name=app.name, user_id="bench")
+async def executer(consigne: str, agent: str = "atelier") -> dict:
+    if agent == "explorateur":
+        # Mêmes plugins que dans l'Atelier, dont il hérite quand il y est appelé (AgentTool).
+        runner = InMemoryRunner(app=App(name="explorateur", root_agent=explorateur, plugins=app.plugins))
+    else:
+        runner = InMemoryRunner(app=app)
+    session = await runner.session_service.create_session(app_name=runner.app_name, user_id="bench")
     message = types.Content(role="user", parts=[types.Part(text=consigne)])
 
     resultat = {"appels": [], "appels_modele": 0, "tokens_entree": 0, "tokens_sortie": 0,
@@ -44,4 +52,4 @@ async def executer(consigne: str) -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(asyncio.run(executer(sys.argv[1])), ensure_ascii=False))
+    print(json.dumps(asyncio.run(executer(*sys.argv[1:3])), ensure_ascii=False))

@@ -6,6 +6,7 @@ Usage (depuis la racine du projet) :
                                                  (--config A : sans Compilateur, --config B : avec)
   python -m bench.run web      jinja-001         prépare la tâche et ouvre l'interface adk web
   python -m bench.run juger    jinja-001         juge la tâche après son passage dans adk web
+  python -m bench.run localiser [jinja-001 ...]  l'explorateur seul retrouve-t-il le fichier décisif ?
 
 Sans identifiant, toutes les tâches de bench/tasks/ sont prises.
 
@@ -110,20 +111,22 @@ def supprimer(dossier: Path) -> None:
 
 
 def preparer_copie(tache: dict, dossier: Path) -> Path:
-    """Copie propre du dépôt, avec le problème de la tâche injecté puis commité.
+    """Copie propre du dépôt, avec le problème de la tâche déjà injecté.
 
-    Le commit permet ensuite de voir avec git exactement ce que l'agent a modifié.
+    La copie reçoit un dépôt git NEUF avec un seul commit : l'agent peut utiliser git
+    (log, show, blame) sans que l'historique révèle l'injection. Ce commit sert ensuite
+    à voir exactement ce que l'agent a modifié.
     """
     source, _ = preparer_depot(tache["depot"])
     copie = dossier / tache["id"]
     if copie.exists():
         supprimer(copie)
-    shutil.copytree(source, copie)
+    shutil.copytree(source, copie, ignore=shutil.ignore_patterns(".git"))
     appliquer(copie, tache["injection"])
     git = ["git", "-c", "user.name=bench", "-c", "user.email=bench@forge"]
+    lancer(["git", "init", "-q"], cwd=copie)
     lancer([*git, "add", "-A"], cwd=copie)
-    # --allow-empty : les tâches de fonctionnalité n'injectent rien.
-    lancer([*git, "commit", "-q", "--allow-empty", "-m", f"injection {tache['id']}"], cwd=copie)
+    lancer([*git, "commit", "-q", "-m", "état de départ"], cwd=copie)
     return copie
 
 
@@ -239,11 +242,12 @@ def environnement_atelier(tache: dict, copie: Path, mode: str, config: str = "A"
     }
 
 
-def lancer_atelier(tache: dict, copie: Path, config: str) -> dict:
-    """Lance l'Atelier dans un processus séparé, en mode auto, sur la copie du dépôt."""
+def lancer_atelier(tache: dict, copie: Path, config: str, consigne: str = "", agent: str = "atelier") -> dict:
+    """Lance l'Atelier (ou l'explorateur seul) dans un processus séparé, en mode auto,
+    sur la copie du dépôt."""
     env = environnement_atelier(tache, copie, mode="auto", config=config)
     debut = time.time()
-    proc = subprocess.run([sys.executable, "-m", "bench.atelier_runner", tache["consigne"]],
+    proc = subprocess.run([sys.executable, "-m", "bench.atelier_runner", consigne or tache["consigne"], agent],
                           cwd=RACINE, env=env, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=1800)
     lignes = proc.stdout.strip().splitlines()
@@ -253,6 +257,34 @@ def lancer_atelier(tache: dict, copie: Path, config: str) -> dict:
         resultat = {"erreur": proc.stderr.strip()[-1000:]}
     resultat["duree_s"] = round(time.time() - debut)
     return resultat
+
+
+def localiser(taches: list[dict]) -> None:
+    """Test de l'explorateur seul : retrouve-t-il le fichier décisif de chaque tâche ?
+    Plus rapide et moins cher qu'un lancement complet de l'Atelier."""
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    trouves = 0
+    for tache in taches:
+        copie = preparer_copie(tache, TRAVAIL / "runs" / run_id)
+        question = ("Un utilisateur signale ce problème : « " + tache["consigne"] + " » "
+                    "Quel fichier du code source faut-il modifier ? Localise le code en cause.")
+        agent = lancer_atelier(tache, copie, "A", consigne=question, agent="explorateur")
+        try:   # la réponse suit le schéma RapportExploration (JSON validé par ADK)
+            rapport = json.loads(agent.get("reponse", ""))
+            chemins = [f["chemin"].replace("\\", "/") for f in rapport.get("fichiers", [])]
+        except (json.JSONDecodeError, TypeError, KeyError):
+            rapport, chemins = {}, []
+        trouve = tache["fichier_decisif"] in chemins
+        trouves += trouve
+        print(f"{'TROUVÉ ' if trouve else 'MANQUÉ '} {tache['id']:<10} {tache['fichier_decisif']:<26}"
+              f"  |  appels d'outils : {len(agent.get('appels', []))}"
+              f"  |  tokens : {agent.get('tokens_entree', 0) + agent.get('tokens_sortie', 0)}"
+              f"  |  {agent['duree_s']} s" + (f"  |  erreur : {agent['erreur'][:150]}" if agent.get("erreur") else ""),
+              flush=True)
+        if not trouve:   # pour comprendre l'échec
+            print(f"    statut : {rapport.get('statut', '?')}  |  fichiers : {chemins}"
+                  f"  |  {str(rapport.get('explication') or agent.get('reponse', ''))[:300]}")
+    print(f"\nTaux de localisation : {trouves}/{len(taches)}")
 
 
 def evaluer(taches: list[dict], config: str) -> None:
@@ -330,7 +362,7 @@ def juger_copie_web(tache: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger"])
+    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser"])
     parser.add_argument("taches", nargs="*", help="identifiants des tâches (toutes par défaut)")
     parser.add_argument("--mode", default="auto", choices=["ask", "auto-edit", "auto"],
                         help="mode d'autorisation pour `web` (auto par défaut)")
@@ -350,6 +382,8 @@ def main() -> None:
             juger_copie_web(taches[0])
     elif args.commande == "verifier":
         sys.exit(0 if verifier(taches) else 1)
+    elif args.commande == "localiser":
+        localiser(taches)
     else:
         evaluer(taches, args.config)
 

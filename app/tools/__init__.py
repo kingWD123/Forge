@@ -1,7 +1,8 @@
-"""Outils de l'Atelier.
+"""Outils de l'Atelier et des sous-agents.
 
 - ReadFile, WriteFile, Execute : fournis par l'Environment Toolset d'ADK ;
-- search, outline, run_tests, edit_file : écrits pour FORGE CODE (edit_file remplace l'EditFile d'ADK).
+- search, list_files, outline, git_lecture, run_tests, edit_file : écrits pour FORGE CODE
+  (edit_file remplace l'EditFile d'ADK).
 
 Tous travaillent dans le dépôt de travail (FORGE_WORKSPACE, sinon le dossier courant).
 """
@@ -9,8 +10,11 @@ Tous travaillent dans le dépôt de travail (FORGE_WORKSPACE, sinon le dossier c
 from ._workspace import workspace
 from .edit_file import edit_file
 from .fichiers import outils_fichiers
+from .git_lecture import git_lecture
+from .list_files import list_files
 from .outline import outline
 from .run_tests import run_tests
 from .search import search
 
-__all__ = ["edit_file", "outils_fichiers", "outline", "run_tests", "search", "workspace"]
+__all__ = ["edit_file", "git_lecture", "list_files", "outils_fichiers", "outline", "run_tests",
+           "search", "workspace"]
