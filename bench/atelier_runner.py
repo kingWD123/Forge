@@ -1,9 +1,9 @@
-"""Lance l'Atelier (ou l'explorateur seul) sur une consigne et affiche un résumé JSON
+"""Lance l'Atelier (ou un spécialiste seul) sur une consigne et affiche un résumé JSON
 sur la dernière ligne.
 
 Appelé par bench/run.py dans un processus séparé : le dépôt de travail
 (FORGE_WORKSPACE) et le mode d'autorisation sont fixés par les variables d'environnement.
-Usage : python -m bench.atelier_runner "consigne" [explorateur]
+Usage : python -m bench.atelier_runner "consigne" [explorateur|diagnostiqueur]
 """
 
 import asyncio
@@ -16,15 +16,17 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from app.agent import app
+from app.sub_agents.diagnostiqueur import diagnostiqueur
 from app.sub_agents.explorateur import explorateur
 
 MAX_APPELS_MODELE = 60
+SPECIALISTES = {"explorateur": explorateur, "diagnostiqueur": diagnostiqueur}
 
 
 async def executer(consigne: str, agent: str = "atelier") -> dict:
-    if agent == "explorateur":
+    if agent in SPECIALISTES:
         # Mêmes plugins que dans l'Atelier, dont il hérite quand il y est appelé (AgentTool).
-        runner = InMemoryRunner(app=App(name="explorateur", root_agent=explorateur, plugins=app.plugins))
+        runner = InMemoryRunner(app=App(name=agent, root_agent=SPECIALISTES[agent], plugins=app.plugins))
     else:
         runner = InMemoryRunner(app=app)
     session = await runner.session_service.create_session(app_name=runner.app_name, user_id="bench")

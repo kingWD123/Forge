@@ -7,6 +7,7 @@ Usage (depuis la racine du projet) :
   python -m bench.run web      jinja-001         prépare la tâche et ouvre l'interface adk web
   python -m bench.run juger    jinja-001         juge la tâche après son passage dans adk web
   python -m bench.run localiser [jinja-001 ...]  l'explorateur seul retrouve-t-il le fichier décisif ?
+  python -m bench.run diagnostiquer [...]        le diagnostiqueur seul trouve-t-il la cause ?
 
 Sans identifiant, toutes les tâches de bench/tasks/ sont prises.
 
@@ -259,32 +260,52 @@ def lancer_atelier(tache: dict, copie: Path, config: str, consigne: str = "", ag
     return resultat
 
 
-def localiser(taches: list[dict]) -> None:
-    """Test de l'explorateur seul : retrouve-t-il le fichier décisif de chaque tâche ?
-    Plus rapide et moins cher qu'un lancement complet de l'Atelier."""
+def tester_specialiste(taches: list[dict], agent: str, question, chemins_du_rapport) -> None:
+    """Lance un spécialiste seul sur chaque tâche et vérifie que son rapport (JSON validé
+    par ADK) cite le fichier décisif. Plus rapide et moins cher qu'un lancement de l'Atelier.
+
+    question(tache) -> texte envoyé au spécialiste ; chemins_du_rapport(rapport) -> chemins cités.
+    """
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     trouves = 0
     for tache in taches:
         copie = preparer_copie(tache, TRAVAIL / "runs" / run_id)
-        question = ("Un utilisateur signale ce problème : « " + tache["consigne"] + " » "
-                    "Quel fichier du code source faut-il modifier ? Localise le code en cause.")
-        agent = lancer_atelier(tache, copie, "A", consigne=question, agent="explorateur")
-        try:   # la réponse suit le schéma RapportExploration (JSON validé par ADK)
-            rapport = json.loads(agent.get("reponse", ""))
-            chemins = [f["chemin"].replace("\\", "/") for f in rapport.get("fichiers", [])]
-        except (json.JSONDecodeError, TypeError, KeyError):
+        resultat = lancer_atelier(tache, copie, "A", consigne=question(tache), agent=agent)
+        try:
+            rapport = json.loads(resultat.get("reponse", ""))
+            chemins = [c.replace("\\", "/") for c in chemins_du_rapport(rapport)]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
             rapport, chemins = {}, []
         trouve = tache["fichier_decisif"] in chemins
         trouves += trouve
         print(f"{'TROUVÉ ' if trouve else 'MANQUÉ '} {tache['id']:<10} {tache['fichier_decisif']:<26}"
-              f"  |  appels d'outils : {len(agent.get('appels', []))}"
-              f"  |  tokens : {agent.get('tokens_entree', 0) + agent.get('tokens_sortie', 0)}"
-              f"  |  {agent['duree_s']} s" + (f"  |  erreur : {agent['erreur'][:150]}" if agent.get("erreur") else ""),
-              flush=True)
+              f"  |  appels d'outils : {len(resultat.get('appels', []))}"
+              f"  |  tokens : {resultat.get('tokens_entree', 0) + resultat.get('tokens_sortie', 0)}"
+              f"  |  {resultat['duree_s']} s"
+              + (f"  |  erreur : {resultat['erreur'][:150]}" if resultat.get("erreur") else ""), flush=True)
         if not trouve:   # pour comprendre l'échec
-            print(f"    statut : {rapport.get('statut', '?')}  |  fichiers : {chemins}"
-                  f"  |  {str(rapport.get('explication') or agent.get('reponse', ''))[:300]}")
-    print(f"\nTaux de localisation : {trouves}/{len(taches)}")
+            print(f"    statut : {rapport.get('statut', '?')}  |  fichiers cités : {chemins}"
+                  f"  |  {json.dumps(rapport, ensure_ascii=False)[:400] or resultat.get('reponse', '')[:400]}")
+    print(f"\nRésultat ({agent}) : {trouves}/{len(taches)}")
+
+
+def localiser(taches: list[dict]) -> None:
+    """L'explorateur seul retrouve-t-il le fichier décisif de chaque tâche ?"""
+    tester_specialiste(
+        taches, "explorateur",
+        question=lambda t: ("Un utilisateur signale ce problème : « " + t["consigne"] + " » "
+                            "Quel fichier du code source faut-il modifier ? Localise le code en cause."),
+        chemins_du_rapport=lambda r: [f["chemin"] for f in r.get("fichiers", [])])
+
+
+def diagnostiquer(taches: list[dict]) -> None:
+    """Le diagnostiqueur seul trouve-t-il la cause dans le fichier décisif ?
+    Seulement les tâches où un bug est injecté (sinon aucun test n'échoue)."""
+    tester_specialiste(
+        [t for t in taches if t["injection"]], "diagnostiqueur",
+        question=lambda t: ("Des tests échouent dans ce dépôt. Symptôme signalé : « " + t["consigne"]
+                            + " » Trouve la cause dans le code source."),
+        chemins_du_rapport=lambda r: [r["cause"]["chemin"]] if r.get("cause") else [])
 
 
 def evaluer(taches: list[dict], config: str) -> None:
@@ -362,7 +383,7 @@ def juger_copie_web(tache: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser"])
+    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser", "diagnostiquer"])
     parser.add_argument("taches", nargs="*", help="identifiants des tâches (toutes par défaut)")
     parser.add_argument("--mode", default="auto", choices=["ask", "auto-edit", "auto"],
                         help="mode d'autorisation pour `web` (auto par défaut)")
@@ -384,6 +405,8 @@ def main() -> None:
         sys.exit(0 if verifier(taches) else 1)
     elif args.commande == "localiser":
         localiser(taches)
+    elif args.commande == "diagnostiquer":
+        diagnostiquer(taches)
     else:
         evaluer(taches, args.config)
 

@@ -13,8 +13,9 @@ from .fichiers import outils_fichiers
 from .git_lecture import git_lecture
 from .list_files import list_files
 from .outline import outline
+from .regrouper_echecs import regrouper_echecs
 from .run_tests import run_tests
 from .search import search
 
-__all__ = ["edit_file", "git_lecture", "list_files", "outils_fichiers", "outline", "run_tests",
-           "search", "workspace"]
+__all__ = ["edit_file", "git_lecture", "list_files", "outils_fichiers", "outline", "regrouper_echecs",
+           "run_tests", "search", "workspace"]
