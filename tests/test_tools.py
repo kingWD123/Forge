@@ -71,6 +71,13 @@ def test_outline_refuse_les_fichiers_non_python(depot):
         outline("conftest.txt")
 
 
+def test_search_dans_un_seul_fichier(depot):
+    # ripgrep n'affiche pas le chemin quand on cherche dans un seul fichier :
+    # sans --with-filename, ce cas renvoyait zéro résultat.
+    result = search("ajouter", path="calc.py")
+    assert result["matches"] == ["calc.py:1 (dans ajouter): def ajouter(a, b):"]
+
+
 def test_search_ignore_secrets_et_venv(depot):
     matches = search("ajouter")["matches"]
     assert not any(m.startswith((".env", ".venv")) for m in matches)

@@ -1,0 +1,59 @@
+id: jinja-011
+famille: migration
+depot: jinja
+fichier_decisif: src/jinja2/runtime.py
+consigne: >-
+  Le décorateur internalcode de src/jinja2/utils.py a été renommé mark_internal
+  (l'ancien nom n'existe plus) et le paquet ne s'importe plus. Migre tout le code
+  pour utiliser le nouveau nom. Contraintes : ne modifie pas src/jinja2/utils.py,
+  n'ajoute pas d'alias vers l'ancien nom et ne touche pas aux tests.
+# Le renommage casse 5 fichiers, dont deux endroits cachés : runtime.py exporte le nom
+# sous forme de chaîne vers les templates, et compiler.py écrit "@internalcode" dans
+# le code Python généré pour chaque template.
+injection:
+  - fichier: src/jinja2/utils.py
+    avant: 'def internalcode(f: F) -> F:'
+    apres: 'def mark_internal(f: F) -> F:'
+fichiers_autorises:
+  - src/jinja2/environment.py
+  - src/jinja2/loaders.py
+  - src/jinja2/runtime.py
+  - src/jinja2/compiler.py
+  - src/jinja2/debug.py
+tests_caches:
+  - fichier: tests/test_forge_migration.py
+    contenu: |
+      import re
+      from pathlib import Path
+
+      import jinja2
+      import jinja2.utils
+      from jinja2 import Environment
+
+
+      def test_ancien_nom_disparu_du_code():
+          dossier = Path(jinja2.__file__).parent
+          restes = [f"{f.name}:{n}" for f in sorted(dossier.glob("*.py"))
+                    for n, ligne in enumerate(f.read_text(encoding="utf-8").splitlines(), 1)
+                    if re.search(r"\binternalcode\b", ligne)]
+          assert restes == []
+
+
+      def test_pas_d_alias():
+          assert not hasattr(jinja2.utils, "internalcode")
+
+
+      def test_code_genere_utilise_le_nouveau_nom():
+          # Un filtre utilisé dans un bloc conditionnel fait générer « @... def ... ».
+          env = Environment()
+          source = "{% if x %}{{ x|upper }}{% endif %}"
+          code = env.compile(source, raw=True)
+          assert "@mark_internal" in code
+          assert env.from_string(source).render(x="a") == "A"
+solution:
+  - {fichier: src/jinja2/environment.py, avant: internalcode, apres: mark_internal, tout: true}
+  - {fichier: src/jinja2/loaders.py, avant: internalcode, apres: mark_internal, tout: true}
+  - {fichier: src/jinja2/runtime.py, avant: internalcode, apres: mark_internal, tout: true}
+  - {fichier: src/jinja2/compiler.py, avant: internalcode, apres: mark_internal, tout: true}
+  - {fichier: src/jinja2/debug.py, avant: internalcode, apres: mark_internal, tout: true}
+juge: [tests]

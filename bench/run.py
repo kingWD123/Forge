@@ -55,14 +55,15 @@ def charger_depot(nom: str) -> dict:
 
 
 def appliquer(copie: Path, remplacements: list[dict]) -> None:
-    """Applique des remplacements {fichier, avant, apres} ; chaque `avant` doit être unique."""
+    """Applique des remplacements {fichier, avant, apres}. `avant` doit être unique,
+    sauf avec `tout: true` : toutes ses occurrences sont alors remplacées (au moins une)."""
     for r in remplacements:
         fichier = copie / r["fichier"]
         texte = fichier.read_bytes().decode("utf-8")
         crlf = "\r\n" in texte
         texte = texte.replace("\r\n", "\n")
         nombre = texte.count(r["avant"])
-        if nombre != 1:
+        if nombre == 0 or (nombre > 1 and not r.get("tout")):
             raise ValueError(f"{r['fichier']} : le texte à remplacer apparaît {nombre} fois (attendu : 1)")
         texte = texte.replace(r["avant"], r["apres"])
         if crlf:

@@ -19,6 +19,7 @@ def test_root_agent_loads():
         "explorateur",
         "diagnostiqueur",
         "migrateur",
+        "migrer_partout",
         "redacteur_tests",
         "evaluateur_agent",
         "forgeron_agent",

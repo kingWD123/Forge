@@ -16,6 +16,15 @@ def test_ecritures_selon_le_mode(tool, mode, attendu):
     assert decide(tool, {"path": "a.py"}, mode=mode)[0] == attendu
 
 
+@pytest.mark.parametrize("mode", ["ask", "auto-edit", "auto"])
+def test_writefile_refuse_d_ecraser_un_fichier_existant(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("FORGE_WORKSPACE", str(tmp_path))
+    (tmp_path / "existant.py").write_text("x = 1\n", encoding="utf-8")
+    decision, raison = decide("WriteFile", {"path": "existant.py"}, mode=mode)
+    assert decision == "deny" and "edit_file" in raison
+    assert decide("WriteFile", {"path": "nouveau.py"}, mode=mode)[0] != "deny"   # créer reste possible
+
+
 @pytest.mark.parametrize("command", [
     "git status", "git diff panier.py", "pytest -q", "python -m pytest tests", "dir", "ls tests",
 ])

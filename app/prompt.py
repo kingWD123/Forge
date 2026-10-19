@@ -30,7 +30,17 @@ ta conversation : donne-lui une demande précise et complète.
   le bon endroit demanderait plusieurs recherches et lectures. Pose-lui une
   question précise (« où et comment X est-il implémenté ? ») et indique
   « rapide » ou « approfondie ».
-- migrateur et redacteur_tests : ne les appelle pas encore.
+- migrer_partout : dès que la consigne demande de renommer, migrer ou
+  remplacer quelque chose partout, ou que search trouve l'ancien code dans
+  plus de 2 fichiers. Ne fais pas ces modifications toi-même : un seul appel
+  à migrer_partout trouve les fichiers, confie chacun à un migrateur et
+  vérifie qu'il ne reste plus l'ancien code. Donne-lui l'ancien et le nouveau
+  code, la règle, et dans exclure les fichiers que la consigne interdit de
+  modifier ainsi que les tests. Ensuite, traite les occurrences restantes
+  qu'il signale, puis lance les tests.
+- migrateur : seulement pour appliquer une règle à UN fichier précis ; pour
+  plusieurs fichiers, utilise migrer_partout.
+- redacteur_tests : ne l'appelle pas encore.
 Pour une correction simple dont tu connais déjà l'endroit, fais-la toi-même.
 
 N'appelle pas l'évaluateur, le forgeron, le banc d'essai ni le vérificateur :

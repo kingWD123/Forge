@@ -86,7 +86,8 @@ def _format(rel: str, lineno: int, text: str) -> str:
 def _search_rg(pattern: str, target: Path, root: Path, glob: str, ignore_case: bool) -> list[str]:
     # Seulement des exclusions ici : un filtre -g positif restreindrait la recherche
     # à ce seul motif. Les fichiers de secrets sont écartés après coup (is_secret).
-    cmd = ["rg", "--line-number", "--no-heading", "--color", "never", "--hidden"]
+    # --with-filename : sans lui, rg omet le chemin quand on cherche dans un seul fichier.
+    cmd = ["rg", "--line-number", "--with-filename", "--no-heading", "--color", "never", "--hidden"]
     cmd += [arg for d in IGNORED_DIRS for arg in ("-g", f"!{d}/")]
     if glob:
         cmd += ["-g", glob]

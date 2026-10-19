@@ -18,6 +18,7 @@ from typing import Any, Literal
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
+from .tools._workspace import resolve_in_workspace
 from .tools.edit_file import make_diff, prepare_edit
 
 Decision = Literal["allow", "ask", "deny"]
@@ -26,7 +27,9 @@ Decision = Literal["allow", "ask", "deny"]
 READ_TOOLS = {"ReadFile", "search", "outline", "run_tests", "noter_decision"}
 # Sous-agents appelés comme outils : ils n'agissent qu'à travers leurs propres outils.
 AGENT_TOOLS = {"evaluateur_agent", "forgeron_agent", "banc_essai_agent", "verificateur_agent",
-               "explorateur", "diagnostiqueur", "migrateur", "redacteur_tests"}
+               "explorateur", "diagnostiqueur", "migrateur", "redacteur_tests",
+               # Lance des migrateurs : leurs écritures passent par ces mêmes autorisations.
+               "migrer_partout"}
 WRITE_TOOLS = {"edit_file", "WriteFile"}
 EXEC_TOOL = "Execute"
 
@@ -53,12 +56,23 @@ def permission_mode() -> str:
     return mode if mode in ("ask", "auto-edit", "auto") else "ask"
 
 
+def _fichier_existe(chemin: str) -> bool:
+    try:
+        return resolve_in_workspace(chemin).is_file()
+    except ValueError:
+        return False   # chemin hors du dépôt : l'outil le refusera lui-même
+
+
 def decide(tool_name: str, args: dict[str, Any], mode: str | None = None) -> tuple[Decision, str]:
     """Décide pour un appel d'outil. Renvoie (décision, raison)."""
     mode = mode or permission_mode()
 
     if tool_name in READ_TOOLS or tool_name in AGENT_TOOLS:
         return "allow", "lecture seule"
+
+    if tool_name == "WriteFile" and _fichier_existe(args.get("path", "")):
+        # Réécrire un fichier entier fait perdre du code : on modifie avec edit_file.
+        return "deny", "WriteFile ne sert qu'à créer un nouveau fichier ; pour modifier un fichier existant, utilise edit_file"
 
     if tool_name in WRITE_TOOLS:
         if mode in ("auto-edit", "auto"):

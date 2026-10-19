@@ -10,6 +10,7 @@ from google.adk.tools.agent_tool import AgentTool
 from google.genai import types
 
 from . import prompt
+from .orchestration.migrer_partout import migrer_partout
 from .context import compiler, noter_decision, tronquer_sorties
 from .permissions import autoriser
 from .sub_agents.banc_essai import banc_essai_agent
@@ -47,6 +48,8 @@ atelier = LlmAgent(
         AgentTool(agent=explorateur),
         AgentTool(agent=diagnostiqueur),
         AgentTool(agent=migrateur),
+        # Migration dans tout le dépôt : un migrateur par fichier, lancé par le code.
+        migrer_partout,
         AgentTool(agent=redacteur_tests),
         # Mécanique de la forge (semaines 7 et 8).
         AgentTool(agent=evaluateur_agent),

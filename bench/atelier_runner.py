@@ -18,9 +18,10 @@ from google.genai import types
 from app.agent import app
 from app.sub_agents.diagnostiqueur import diagnostiqueur
 from app.sub_agents.explorateur import explorateur
+from app.sub_agents.migrateur import migrateur
 
 MAX_APPELS_MODELE = 60
-SPECIALISTES = {"explorateur": explorateur, "diagnostiqueur": diagnostiqueur}
+SPECIALISTES = {"explorateur": explorateur, "diagnostiqueur": diagnostiqueur, "migrateur": migrateur}
 
 
 async def executer(consigne: str, agent: str = "atelier") -> dict:
