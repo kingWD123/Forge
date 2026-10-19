@@ -1,0 +1,149 @@
+id: jinja-012
+famille: ecriture_tests
+depot: jinja
+fichier_decisif: src/jinja2/meta.py
+tests_modifiables: true   # la tâche consiste justement à écrire des tests
+# Remplace jinja-008 : la couverture ne prouvait rien (meta.py restait couvert par le reste
+# de la suite). Ici, les tests écrits doivent détecter trois versions cassées de meta.py
+# (mutants), que le reste de la suite laisse passer.
+consigne: >-
+  Les tests du module src/jinja2/meta.py (find_undeclared_variables et
+  find_referenced_templates) ont été supprimés. Écris des tests qui vérifient
+  précisément son comportement, y compris les cas particuliers. Ne modifie pas
+  meta.py.
+fichiers_interdits: [src/jinja2/meta.py]
+injection:
+- fichier: tests/test_api.py
+  avant: |+
+    class TestMeta:
+        def test_find_undeclared_variables(self, env):
+            ast = env.parse("{% set foo = 42 %}{{ bar + foo }}")
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"bar"}
+
+            ast = env.parse(
+                "{% set foo = 42 %}{{ bar + foo }}"
+                "{% macro meh(x) %}{{ x }}{% endmacro %}"
+                "{% for item in seq %}{{ muh(item) + meh(seq) }}"
+                "{% endfor %}"
+            )
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"bar", "seq", "muh"}
+
+            ast = env.parse("{% for x in range(5) %}{{ x }}{% endfor %}{{ foo }}")
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"foo"}
+
+        def test_find_refererenced_templates(self, env):
+            ast = env.parse('{% extends "layout.html" %}{% include helper %}')
+            i = meta.find_referenced_templates(ast)
+            assert next(i) == "layout.html"
+            assert next(i) is None
+            assert list(i) == []
+
+            ast = env.parse(
+                '{% extends "layout.html" %}'
+                '{% from "test.html" import a, b as c %}'
+                '{% import "meh.html" as meh %}'
+                '{% include "muh.html" %}'
+            )
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["layout.html", "test.html", "meh.html", "muh.html"]
+
+        def test_find_included_templates(self, env):
+            ast = env.parse('{% include ["foo.html", "bar.html"] %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html"]
+
+            ast = env.parse('{% include ("foo.html", "bar.html") %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html"]
+
+            ast = env.parse('{% include ["foo.html", "bar.html", foo] %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html", None]
+
+            ast = env.parse('{% include ("foo.html", "bar.html", foo) %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html", None]
+
+
+  apres: ''
+solution:
+- fichier: tests/test_api.py
+  avant: 'class TestStreaming:'
+  apres: |-
+    class TestMeta:
+        def test_find_undeclared_variables(self, env):
+            ast = env.parse("{% set foo = 42 %}{{ bar + foo }}")
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"bar"}
+
+            ast = env.parse(
+                "{% set foo = 42 %}{{ bar + foo }}"
+                "{% macro meh(x) %}{{ x }}{% endmacro %}"
+                "{% for item in seq %}{{ muh(item) + meh(seq) }}"
+                "{% endfor %}"
+            )
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"bar", "seq", "muh"}
+
+            ast = env.parse("{% for x in range(5) %}{{ x }}{% endfor %}{{ foo }}")
+            x = meta.find_undeclared_variables(ast)
+            assert x == {"foo"}
+
+        def test_find_refererenced_templates(self, env):
+            ast = env.parse('{% extends "layout.html" %}{% include helper %}')
+            i = meta.find_referenced_templates(ast)
+            assert next(i) == "layout.html"
+            assert next(i) is None
+            assert list(i) == []
+
+            ast = env.parse(
+                '{% extends "layout.html" %}'
+                '{% from "test.html" import a, b as c %}'
+                '{% import "meh.html" as meh %}'
+                '{% include "muh.html" %}'
+            )
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["layout.html", "test.html", "meh.html", "muh.html"]
+
+        def test_find_included_templates(self, env):
+            ast = env.parse('{% include ["foo.html", "bar.html"] %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html"]
+
+            ast = env.parse('{% include ("foo.html", "bar.html") %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html"]
+
+            ast = env.parse('{% include ["foo.html", "bar.html", foo] %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html", None]
+
+            ast = env.parse('{% include ("foo.html", "bar.html", foo) %}')
+            i = meta.find_referenced_templates(ast)
+            assert list(i) == ["foo.html", "bar.html", None]
+
+
+    class TestStreaming:
+juge: [tests]
+mutants:
+  - nom: globales-non-filtrees
+    fichier: src/jinja2/meta.py
+    avant: 'if action == "resolve" and param not in self.environment.globals:'
+    apres: 'if action == "resolve":'
+  - nom: liste-dynamique-ignoree
+    fichier: src/jinja2/meta.py
+    avant: |-
+      # something dynamic in there
+                          else:
+                              yield None
+    apres: |-
+      # something dynamic in there
+                          else:
+                              pass
+  - nom: nom-constant-perdu
+    fichier: src/jinja2/meta.py
+    avant: '            yield template.value'
+    apres: '            yield None'

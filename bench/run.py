@@ -8,6 +8,7 @@ Usage (depuis la racine du projet) :
   python -m bench.run juger    jinja-001         juge la tâche après son passage dans adk web
   python -m bench.run localiser [jinja-001 ...]  l'explorateur seul retrouve-t-il le fichier décisif ?
   python -m bench.run diagnostiquer [...]        le diagnostiqueur seul trouve-t-il la cause ?
+  python -m bench.run rediger [...]              le rédacteur de tests seul, jugé comme l'Atelier
 
 Sans identifiant, toutes les tâches de bench/tasks/ sont prises.
 
@@ -18,6 +19,9 @@ Une tâche (bench/tasks/*.yaml) contient :
   tests_caches  tests ajoutés seulement au moment de juger (l'agent ne les voit pas)
   solution      correction de référence ; par défaut, l'inverse de l'injection
   fichiers_autorises   (facultatif) seuls fichiers que l'agent a le droit de modifier
+  fichiers_interdits   (facultatif) fichiers que l'agent ne doit pas modifier
+  mutants       (facultatif, tâches d'écriture de tests) remplacements qui cassent le code :
+                les tests de l'agent doivent échouer sur chacun d'eux
 """
 
 import argparse
@@ -186,17 +190,37 @@ def juger(tache: dict, copie: Path) -> dict:
     juge_ok, juge_resume = pytest(tache, copie, tache["juge"])
 
     autorises = tache.get("fichiers_autorises")
-    interdits = [f for f in modifies if autorises and f not in autorises]
+    interdits = [f for f in modifies if (autorises and f not in autorises)
+                 or f in tache.get("fichiers_interdits", [])]
+
+    # Un mutant est « tué » si les tests échouent quand on casse le code de cette façon.
+    survivants = [m["nom"] for m in tache.get("mutants", []) if not mutant_tue(tache, copie, m)]
 
     return {
-        "reussi": juge_ok and not interdits,
+        "reussi": juge_ok and not interdits and not survivants,
         "juge": juge_resume,
         "suite_complete": suite_resume,
         "regressions": not suite_ok,
         "fichiers_modifies": modifies,
         "tests_existants_modifies": tests_modifies,   # remis d'origine avant de juger
         "fichiers_interdits_modifies": interdits,
+        **({"mutants_survivants": survivants} if tache.get("mutants") else {}),
     }
+
+
+def mutant_tue(tache: dict, copie: Path, mutant: dict) -> bool:
+    """Casse le code avec le mutant, lance toute la suite, puis remet le code en état."""
+    fichier = copie / mutant["fichier"]
+    original = fichier.read_bytes()
+    try:
+        appliquer(copie, [mutant])
+    except ValueError:
+        return False   # code source modifié par l'agent : le mutant ne s'applique plus
+    try:
+        tests_ok, _ = pytest(tache, copie, ["-x", charger_depot(tache["depot"])["tests"]])
+    finally:
+        fichier.write_bytes(original)
+    return not tests_ok
 
 
 # ------------------------------------------------------------------------- commandes
@@ -309,17 +333,19 @@ def diagnostiquer(taches: list[dict]) -> None:
         chemins_du_rapport=lambda r: [r["cause"]["chemin"]] if r.get("cause") else [])
 
 
-def evaluer(taches: list[dict], config: str) -> None:
-    """Lance l'Atelier sur chaque tâche, juge, et enregistre une ligne par tâche."""
+def evaluer(taches: list[dict], config: str, agent_lance: str = "atelier") -> None:
+    """Lance l'Atelier (ou un spécialiste seul) sur chaque tâche, juge, et enregistre
+    une ligne par tâche."""
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     RESULTATS.mkdir(exist_ok=True)
-    fichier_resultats = RESULTATS / f"{run_id}-{config}.jsonl"
-    print(f"Configuration {config} : {CONFIGURATIONS[config]}")
+    suffixe = config if agent_lance == "atelier" else f"{config}-{agent_lance}"
+    fichier_resultats = RESULTATS / f"{run_id}-{suffixe}.jsonl"
+    print(f"Configuration {config} : {CONFIGURATIONS[config]}  |  agent : {agent_lance}")
     statuts = []
     for tache in taches:
         print(f"> {tache['id']} ({tache['famille']})...", flush=True)
         copie = preparer_copie(tache, TRAVAIL / "runs" / run_id)
-        agent = lancer_atelier(tache, copie, config)
+        agent = lancer_atelier(tache, copie, config, agent=agent_lance)
         jugement = juger(tache, copie)
 
         # « erreur » : l'Atelier a été interrompu (quota, panne du modèle...) sans finir.
@@ -341,6 +367,10 @@ def evaluer(taches: list[dict], config: str) -> None:
               f"  |  tokens : {agent.get('tokens_entree', 0) + agent.get('tokens_sortie', 0)}"
               f"  |  {agent['duree_s']} s"
               + ("  |  RÉGRESSIONS" if jugement["regressions"] else "")
+              + (f"  |  mutants survivants : {', '.join(jugement['mutants_survivants'])}"
+                 if jugement.get("mutants_survivants") else "")
+              + (f"  |  fichiers interdits : {', '.join(jugement['fichiers_interdits_modifies'])}"
+                 if jugement["fichiers_interdits_modifies"] else "")
               + (f"  |  tests remis d'origine : {', '.join(jugement['tests_existants_modifies'])}"
                  if jugement["tests_existants_modifies"] else "")
               + (f"  |  erreur : {agent['erreur'][:200]}" if agent.get("erreur") else ""))
@@ -384,7 +414,8 @@ def juger_copie_web(tache: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser", "diagnostiquer"])
+    parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser", "diagnostiquer",
+                                                "rediger"])
     parser.add_argument("taches", nargs="*", help="identifiants des tâches (toutes par défaut)")
     parser.add_argument("--mode", default="auto", choices=["ask", "auto-edit", "auto"],
                         help="mode d'autorisation pour `web` (auto par défaut)")
@@ -408,6 +439,8 @@ def main() -> None:
         localiser(taches)
     elif args.commande == "diagnostiquer":
         diagnostiquer(taches)
+    elif args.commande == "rediger":
+        evaluer([t for t in taches if t["famille"] == "ecriture_tests"], args.config, "redacteur_tests")
     else:
         evaluer(taches, args.config)
 

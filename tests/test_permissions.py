@@ -25,6 +25,13 @@ def test_writefile_refuse_d_ecraser_un_fichier_existant(tmp_path, monkeypatch, m
     assert decide("WriteFile", {"path": "nouveau.py"}, mode=mode)[0] != "deny"   # créer reste possible
 
 
+def test_writefile_peut_remplir_un_fichier_vide(tmp_path, monkeypatch):
+    # Sinon l'agent est bloqué : WriteFile refusé, et edit_file n'a rien à remplacer.
+    monkeypatch.setenv("FORGE_WORKSPACE", str(tmp_path))
+    (tmp_path / "vide.py").write_text("", encoding="utf-8")
+    assert decide("WriteFile", {"path": "vide.py"}, mode="auto")[0] == "allow"
+
+
 @pytest.mark.parametrize("command", [
     "git status", "git diff panier.py", "pytest -q", "python -m pytest tests", "dir", "ls tests",
 ])

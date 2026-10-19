@@ -3,7 +3,7 @@ sur la dernière ligne.
 
 Appelé par bench/run.py dans un processus séparé : le dépôt de travail
 (FORGE_WORKSPACE) et le mode d'autorisation sont fixés par les variables d'environnement.
-Usage : python -m bench.atelier_runner "consigne" [explorateur|diagnostiqueur]
+Usage : python -m bench.atelier_runner "consigne" [explorateur|diagnostiqueur|migrateur|redacteur_tests]
 """
 
 import asyncio
@@ -19,9 +19,11 @@ from app.agent import app
 from app.sub_agents.diagnostiqueur import diagnostiqueur
 from app.sub_agents.explorateur import explorateur
 from app.sub_agents.migrateur import migrateur
+from app.sub_agents.redacteur_tests import redacteur_tests
 
 MAX_APPELS_MODELE = 60
-SPECIALISTES = {"explorateur": explorateur, "diagnostiqueur": diagnostiqueur, "migrateur": migrateur}
+SPECIALISTES = {"explorateur": explorateur, "diagnostiqueur": diagnostiqueur, "migrateur": migrateur,
+                "redacteur_tests": redacteur_tests}
 
 
 async def executer(consigne: str, agent: str = "atelier") -> dict:

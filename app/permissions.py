@@ -56,9 +56,12 @@ def permission_mode() -> str:
     return mode if mode in ("ask", "auto-edit", "auto") else "ask"
 
 
-def _fichier_existe(chemin: str) -> bool:
+def _fichier_non_vide(chemin: str) -> bool:
+    """Un fichier vide (ex. créé sans contenu) peut être réécrit : il n'y a rien à perdre,
+    et edit_file ne peut rien y remplacer."""
     try:
-        return resolve_in_workspace(chemin).is_file()
+        fichier = resolve_in_workspace(chemin)
+        return fichier.is_file() and fichier.read_bytes().strip() != b""
     except ValueError:
         return False   # chemin hors du dépôt : l'outil le refusera lui-même
 
@@ -70,7 +73,7 @@ def decide(tool_name: str, args: dict[str, Any], mode: str | None = None) -> tup
     if tool_name in READ_TOOLS or tool_name in AGENT_TOOLS:
         return "allow", "lecture seule"
 
-    if tool_name == "WriteFile" and _fichier_existe(args.get("path", "")):
+    if tool_name == "WriteFile" and _fichier_non_vide(args.get("path", "")):
         # Réécrire un fichier entier fait perdre du code : on modifie avec edit_file.
         return "deny", "WriteFile ne sert qu'à créer un nouveau fichier ; pour modifier un fichier existant, utilise edit_file"
 

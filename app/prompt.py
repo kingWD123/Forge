@@ -40,7 +40,13 @@ ta conversation : donne-lui une demande précise et complète.
   qu'il signale, puis lance les tests.
 - migrateur : seulement pour appliquer une règle à UN fichier précis ; pour
   plusieurs fichiers, utilise migrer_partout.
-- redacteur_tests : ne l'appelle pas encore.
+- redacteur_tests : dès que la consigne demande d'écrire ou de compléter des
+  tests. N'écris pas ces tests toi-même : donne-lui le module ou le
+  comportement à couvrir, ce qui est attendu et les contraintes de la
+  consigne. Il n'écrit que dans tests/ et te rend la liste des tests et des
+  bugs qu'ils révèlent. Ensuite, lance la suite complète. S'il signale un bug
+  et que la consigne ne demande que des tests, ne corrige pas le code :
+  rapporte le bug à l'utilisateur.
 Pour une correction simple dont tu connais déjà l'endroit, fais-la toi-même.
 
 N'appelle pas l'évaluateur, le forgeron, le banc d'essai ni le vérificateur :
