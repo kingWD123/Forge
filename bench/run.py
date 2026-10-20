@@ -3,12 +3,13 @@
 Usage (depuis la racine du projet) :
   python -m bench.run verifier [jinja-001 ...]   vérifie que chaque tâche est bien construite
   python -m bench.run lancer   [jinja-001 ...]   lance l'Atelier sur les tâches et note le résultat
-                                                 (--config A : sans Compilateur, --config B : avec)
+                                                 (--config A : agent simple, B : + Compilateur, C : + spécialistes)
   python -m bench.run web      jinja-001         prépare la tâche et ouvre l'interface adk web
   python -m bench.run juger    jinja-001         juge la tâche après son passage dans adk web
   python -m bench.run localiser [jinja-001 ...]  l'explorateur seul retrouve-t-il le fichier décisif ?
   python -m bench.run diagnostiquer [...]        le diagnostiqueur seul trouve-t-il la cause ?
   python -m bench.run rediger [...]              le rédacteur de tests seul, jugé comme l'Atelier
+  python -m bench.run comparer                   tableau A / B / C : derniers résultats de chaque configuration
 
 Sans identifiant, toutes les tâches de bench/tasks/ sont prises.
 
@@ -249,8 +250,9 @@ def verifier(taches: list[dict]) -> bool:
 
 # Configurations du protocole expérimental (dossier, section 7).
 CONFIGURATIONS = {
-    "A": {"FORGE_CONTEXT": "off"},   # agent de code simple
-    "B": {"FORGE_CONTEXT": "on"},    # A + Compilateur de contexte
+    "A": {"FORGE_CONTEXT": "off", "FORGE_SPECIALISTES": "off"},   # agent de code simple
+    "B": {"FORGE_CONTEXT": "on", "FORGE_SPECIALISTES": "off"},    # A + Compilateur de contexte
+    "C": {"FORGE_CONTEXT": "on", "FORGE_SPECIALISTES": "on"},     # B + les quatre spécialistes
 }
 
 
@@ -333,6 +335,18 @@ def diagnostiquer(taches: list[dict]) -> None:
         chemins_du_rapport=lambda r: [r["cause"]["chemin"]] if r.get("cause") else [])
 
 
+def statut_de(reussi: bool, agent: dict) -> str:
+    """« erreur » : l'Atelier a été interrompu (quota, panne du modèle...) sans finir. Ce n'est
+    pas un échec de l'agent : la tâche est exclue du taux de résolution. Mais épuiser son budget
+    d'appels au modèle est bien un échec de l'agent."""
+    if reussi:
+        return "reussi"
+    erreur = agent.get("erreur", "")
+    if erreur and "LlmCallsLimitExceeded" not in erreur:
+        return "erreur"
+    return "echec"
+
+
 def evaluer(taches: list[dict], config: str, agent_lance: str = "atelier") -> None:
     """Lance l'Atelier (ou un spécialiste seul) sur chaque tâche, juge, et enregistre
     une ligne par tâche."""
@@ -340,6 +354,10 @@ def evaluer(taches: list[dict], config: str, agent_lance: str = "atelier") -> No
     RESULTATS.mkdir(exist_ok=True)
     suffixe = config if agent_lance == "atelier" else f"{config}-{agent_lance}"
     fichier_resultats = RESULTATS / f"{run_id}-{suffixe}.jsonl"
+    if os.getenv("FORGE_TRACES") == "on":
+        # Un projet Phoenix par passage du banc, transmis aux processus de l'Atelier.
+        os.environ["FORGE_TRACES_PROJET"] = f"banc-{run_id}-{suffixe}"
+        print(f"Traces Phoenix : projet {os.environ['FORGE_TRACES_PROJET']}")
     print(f"Configuration {config} : {CONFIGURATIONS[config]}  |  agent : {agent_lance}")
     statuts = []
     for tache in taches:
@@ -348,14 +366,7 @@ def evaluer(taches: list[dict], config: str, agent_lance: str = "atelier") -> No
         agent = lancer_atelier(tache, copie, config, agent=agent_lance)
         jugement = juger(tache, copie)
 
-        # « erreur » : l'Atelier a été interrompu (quota, panne du modèle...) sans finir.
-        # Ce n'est pas un échec de l'agent : la tâche est exclue du taux de résolution.
-        if jugement["reussi"]:
-            statut = "reussi"
-        elif agent.get("erreur"):
-            statut = "erreur"
-        else:
-            statut = "echec"
+        statut = statut_de(jugement["reussi"], agent)
         statuts.append(statut)
 
         ligne = {"tache": tache["id"], "famille": tache["famille"], "configuration": config,
@@ -412,19 +423,77 @@ def juger_copie_web(tache: dict) -> None:
         print(f"  fichiers interdits modifiés : {', '.join(jugement['fichiers_interdits_modifies'])}")
 
 
+def dernier_resultat(config: str) -> Path | None:
+    """Le fichier de résultats le plus récent d'une configuration (Atelier, pas un spécialiste seul)."""
+    fichiers = sorted(RESULTATS.glob(f"*-{config}.jsonl"))
+    return fichiers[-1] if fichiers else None
+
+
+def comparer() -> None:
+    """Taux de résolution et coût de chaque configuration, en tout et par famille de tâches.
+    Les tâches interrompues par une erreur (quota...) ne comptent pas dans le taux."""
+    lignes = {}
+    for config in sorted(CONFIGURATIONS):
+        fichier = dernier_resultat(config)
+        if fichier:
+            lignes[config] = [json.loads(l) for l in fichier.read_text(encoding="utf-8").splitlines() if l.strip()]
+            for r in lignes[config]:   # résultats enregistrés avant statut_de
+                r["statut"] = statut_de(r["statut"] == "reussi", r["agent"])
+            print(f"{config} : {fichier.name}")
+    if not lignes:
+        sys.exit("Aucun résultat : lance d'abord `python -m bench.run lancer --config A`.")
+
+    def resume(resultats: list[dict]) -> str:
+        mesures = [r for r in resultats if r["statut"] != "erreur"]
+        if not mesures:
+            return f"{'-':>7} {'':>9} {'':>7}"
+        reussis = sum(r["statut"] == "reussi" for r in mesures)
+        tokens = sum(r["agent"].get("tokens_entree", 0) + r["agent"].get("tokens_sortie", 0) for r in mesures)
+        appels = sum(r["agent"].get("appels_modele", 0) for r in mesures)
+        return f"{reussis:>3}/{len(mesures):<3} {tokens // len(mesures):>9} {appels / len(mesures):>7.1f}"
+
+    familles = sorted({r["famille"] for res in lignes.values() for r in res})
+    entete = "".join(f" | {c + ' : résolu  tokens/t  appels/t':<29}" for c in lignes)
+    print(f"\n{'famille':<26}{entete}")
+    for famille in [*familles, "TOTAL"]:
+        cellules = "".join(
+            f" | {resume([r for r in res if famille == 'TOTAL' or r['famille'] == famille]):<29}"
+            for res in lignes.values())
+        print(f"{famille:<26}{cellules}")
+    erreurs = {c: [r["tache"] for r in res if r["statut"] == "erreur"] for c, res in lignes.items()}
+    if any(erreurs.values()):
+        print("\nInterrompues (non comptées) : "
+              + " ; ".join(f"{c} : {', '.join(t)}" for c, t in erreurs.items() if t))
+
+
+def verifier_phoenix() -> None:
+    import urllib.request
+    adresse = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
+    try:
+        urllib.request.urlopen(adresse, timeout=3)
+    except OSError:
+        sys.exit(f"Phoenix ne répond pas sur {adresse} : lance d'abord `.venv/Scripts/phoenix serve`.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("commande", choices=["verifier", "lancer", "web", "juger", "localiser", "diagnostiquer",
-                                                "rediger"])
+                                                "rediger", "comparer"])
     parser.add_argument("taches", nargs="*", help="identifiants des tâches (toutes par défaut)")
     parser.add_argument("--mode", default="auto", choices=["ask", "auto-edit", "auto"],
                         help="mode d'autorisation pour `web` (auto par défaut)")
     parser.add_argument("--port", type=int, default=8001,
                         help="port de l'interface pour `web` (8001 par défaut, pour ne pas gêner un adk web déjà lancé)")
     parser.add_argument("--config", default="A", choices=sorted(CONFIGURATIONS),
-                        help="configuration à mesurer pour `lancer` et `web` : A (sans Compilateur), B (avec)")
+                        help="configuration à mesurer pour `lancer` et `web` : A (agent simple), B (+ Compilateur), "
+                             "C (+ spécialistes)")
+    parser.add_argument("--traces", action="store_true",
+                        help="envoie les traces vers Phoenix (serveur lancé avec `phoenix serve`)")
     args = parser.parse_args()
     taches = charger_taches(args.taches)
+    if args.traces:
+        verifier_phoenix()
+        os.environ["FORGE_TRACES"] = "on"
 
     if args.commande in ("web", "juger"):
         if len(taches) != 1:
@@ -439,6 +508,8 @@ def main() -> None:
         localiser(taches)
     elif args.commande == "diagnostiquer":
         diagnostiquer(taches)
+    elif args.commande == "comparer":
+        comparer()
     elif args.commande == "rediger":
         evaluer([t for t in taches if t["famille"] == "ecriture_tests"], args.config, "redacteur_tests")
     else:

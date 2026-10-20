@@ -10,3 +10,5 @@ __pycache__/
 .vscode/
 # Banc de tâches : dépôts clonés, copies de travail, environnements
 bench/work/
+# Données du serveur Phoenix local (traces)
+.phoenix/

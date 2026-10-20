@@ -23,6 +23,10 @@ from .sub_agents.redacteur_tests import redacteur_tests
 from .sub_agents.verificateur import verificateur_agent
 from .tools import edit_file, outils_fichiers, outline, run_tests, search
 
+# Configuration C : l'Atelier a ses spécialistes (par défaut). FORGE_SPECIALISTES=off les retire,
+# avec la partie du prompt qui en parle : c'est l'agent de code simple des configurations A et B.
+SPECIALISTES = os.getenv("FORGE_SPECIALISTES", "on").lower() == "on"
+
 atelier = LlmAgent(
     model=Gemini(
         model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
@@ -34,7 +38,7 @@ atelier = LlmAgent(
         " code du dépôt, et délègue aux sous-agents quand la tâche dépasse son"
         " contexte."
     ),
-    instruction=prompt.ATELIER_PROMPT,
+    instruction=prompt.atelier_prompt(specialistes=SPECIALISTES),
     tools=[
         # ReadFile, WriteFile, Execute, confinés au dépôt de travail.
         outils_fichiers(),
@@ -44,18 +48,20 @@ atelier = LlmAgent(
         run_tests,
         # Configuration B : l'Atelier note ses décisions dans l'état structuré de la tâche.
         *([noter_decision] if os.getenv("FORGE_CONTEXT", "off").lower() == "on" else []),
-        # Spécialistes.
-        AgentTool(agent=explorateur),
-        AgentTool(agent=diagnostiqueur),
-        AgentTool(agent=migrateur),
-        # Migration dans tout le dépôt : un migrateur par fichier, lancé par le code.
-        migrer_partout,
-        AgentTool(agent=redacteur_tests),
-        # Mécanique de la forge (semaines 7 et 8).
-        AgentTool(agent=evaluateur_agent),
-        AgentTool(agent=forgeron_agent),
-        AgentTool(agent=banc_essai_agent),
-        AgentTool(agent=verificateur_agent),
+        *([
+            # Spécialistes.
+            AgentTool(agent=explorateur),
+            AgentTool(agent=diagnostiqueur),
+            AgentTool(agent=migrateur),
+            # Migration dans tout le dépôt : un migrateur par fichier, lancé par le code.
+            migrer_partout,
+            AgentTool(agent=redacteur_tests),
+            # Mécanique de la forge (semaines 7 et 8).
+            AgentTool(agent=evaluateur_agent),
+            AgentTool(agent=forgeron_agent),
+            AgentTool(agent=banc_essai_agent),
+            AgentTool(agent=verificateur_agent),
+        ] if SPECIALISTES else []),
     ],
     # Lectures libres ; écritures et commandes soumises à l'accord de l'utilisateur.
     before_tool_callback=autoriser,

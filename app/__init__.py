@@ -15,6 +15,11 @@ try:
 except google.auth.exceptions.DefaultCredentialsError:
     pass
 
+# Traces Phoenix (FORGE_TRACES=on), avant de construire les agents.
+from .traces import activer_traces  # noqa: E402
+
+activer_traces()
+
 from . import agent  # noqa: E402 -- doit venir après load_dotenv()
 
 __all__ = ["agent"]

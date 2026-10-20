@@ -18,6 +18,12 @@ dev = [
 
 [project.optional-dependencies]
 lint = ["ruff>=0.4.6"]
+# Traces Phoenix (FORGE_TRACES=on) : serveur local, export OpenTelemetry (OTLP), instrumentation d'ADK.
+traces = [
+    "arize-phoenix>=20.23.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.42.1",
+    "openinference-instrumentation-google-adk>=1.0.4",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
