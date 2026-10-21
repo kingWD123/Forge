@@ -15,7 +15,8 @@ from app.tools import git_lecture, list_files
 
 def test_explorateur_en_lecture_seule():
     outils = {t.name for t in asyncio.run(explorateur.canonical_tools())}
-    assert outils == {"search", "references", "list_files", "outline", "git_lecture", "ReadFile"}
+    assert outils == {"search", "references", "list_files", "outline", "git_lecture", "ReadFile",
+                      "outil_inconnu"}
 
 
 def test_rapport_valide():

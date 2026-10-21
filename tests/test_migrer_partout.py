@@ -5,9 +5,11 @@ Le migrateur est remplacé par un faux qui fait le remplacement en Python : pas 
 
 import asyncio
 import re
+from types import SimpleNamespace
 
 import pytest
 from google.adk.tools.function_tool import FunctionTool
+from google.genai import types
 
 from app.agent import atelier
 from app.permissions import decide
@@ -48,8 +50,16 @@ def faux_migrateur(depot, demandes, laisser=0):
     return lancer
 
 
-def migrer(**kwargs):
-    return asyncio.run(migrer_partout(tool_context=None, **kwargs))
+def session(*messages):
+    """Faux contexte d'outil : une session avec les messages de l'utilisateur."""
+    evenements = [SimpleNamespace(author="user", content=types.Content(role="user", parts=[types.Part(text=m)]))
+                  for m in messages]
+    evenements.append(SimpleNamespace(author="atelier", content=None))
+    return SimpleNamespace(session=SimpleNamespace(events=evenements))
+
+
+def migrer(consigne="Renomme internalcode en mark_internal partout.", **kwargs):
+    return asyncio.run(migrer_partout(tool_context=session(consigne), **kwargs))
 
 
 def test_motif_en_mot_entier():
@@ -129,3 +139,20 @@ def test_branche_dans_l_atelier_et_autorise():
     noms = {t.name for t in asyncio.run(atelier.canonical_tools())}
     assert "migrer_partout" in noms
     assert decide("migrer_partout", {}, mode="ask")[0] == "allow"
+
+
+def test_refuse_si_la_consigne_ne_demande_pas_de_migration(depot, monkeypatch):
+    demandes = []
+    monkeypatch.setattr(mp, "lancer_migrateur", faux_migrateur(depot, demandes))
+    resultat = migrer(consigne="Beaucoup de tests échouent. Trouve la cause et corrige-la.",
+                      ancien="internalcode", nouveau="mark_internal", regle="renomme")
+    assert resultat["status"] == "error" and "edit_file" in resultat["error"]
+    assert demandes == []   # aucun migrateur lancé, aucun fichier touché
+    assert "internalcode" in (depot / "src" / "a.py").read_text(encoding="utf-8")
+
+
+def test_une_precision_de_l_utilisateur_suffit():
+    # La demande peut venir d'un message suivant la consigne (conversation dans adk web).
+    assert mp.consigne_demande_migration(session("Le paquet ne s'importe plus.", "Migre tout vers le nouveau nom."))
+    assert not mp.consigne_demande_migration(session("Corrige le bug du filtre round."))
+

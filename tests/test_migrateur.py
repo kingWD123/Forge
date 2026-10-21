@@ -14,7 +14,7 @@ from app.sub_agents.migrateur.schema import RapportMigration
 
 def test_outils_et_schema():
     outils = {t.name for t in asyncio.run(migrateur.canonical_tools())}
-    assert outils == {"search", "outline", "edit_file", "ReadFile"}
+    assert outils == {"search", "outline", "edit_file", "ReadFile", "outil_inconnu"}
     assert migrateur.output_schema is RapportMigration
 
 

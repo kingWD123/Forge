@@ -1,7 +1,7 @@
 """Dépôt de travail de l'Atelier et confinement des chemins."""
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # Dossiers jamais parcourus par les outils.
 IGNORED_DIRS = {
@@ -31,3 +31,15 @@ def is_secret(path: Path) -> bool:
     """Fichiers exclus par défaut : .env et variantes (.env.local, ...), sauf .env.example."""
     name = path.name
     return (name == ".env" or name.startswith(".env.")) and name != ".env.example"
+
+
+def est_fichier_de_test(chemin: str) -> bool:
+    """Dossier tests/ (ou test/), ou fichier test_*.py, *_test.py, conftest.py."""
+    try:
+        relatif = PurePosixPath(resolve_in_workspace(chemin).relative_to(workspace()).as_posix())
+    except ValueError:
+        return False   # hors du dépôt
+    nom = relatif.name
+    return (any(partie in ("tests", "test") for partie in relatif.parts[:-1])
+            or (nom.startswith("test_") and nom.endswith(".py"))
+            or nom.endswith("_test.py") or nom == "conftest.py")

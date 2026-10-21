@@ -2,13 +2,34 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from ...tools._workspace import est_fichier_de_test, resolve_in_workspace
 
 
 class Cause(BaseModel):
-    chemin: str = Field(description="Fichier du code source en cause, relatif au dépôt")
+    chemin: str = Field(description="UN fichier du code source en cause, relatif au dépôt")
     lignes: str = Field(description="Ligne ou plage en cause, ex. 1447 ou 1440-1450")
     probleme: str = Field(description="Ce qui est faux dans ce code, en une phrase")
+
+    @field_validator("chemin")
+    @classmethod
+    def un_fichier_source_qui_existe(cls, chemin: str) -> str:
+        # Refus renvoyé au diagnostiqueur par ADK, qui doit alors corriger son rapport.
+        try:
+            existe = resolve_in_workspace(chemin).is_file()
+        except ValueError:
+            existe = False
+        if not existe:
+            raise ValueError(
+                f"« {chemin} » n'est pas un fichier du dépôt. Donne UN seul fichier, le chemin exact "
+                "relatif au dépôt (ex. src/pkg/module.py) : celui que tu as lu et où est la cause.")
+        if est_fichier_de_test(chemin):
+            raise ValueError(
+                f"{chemin} est un fichier de tests : la cause doit être dans le code source. Un test "
+                "qui échoue signale un bug dans le code ; cherche quel code source produit la valeur "
+                "reçue (search, references, git_lecture), puis donne ce fichier.")
+        return chemin
 
 
 class RapportDiagnostic(BaseModel):

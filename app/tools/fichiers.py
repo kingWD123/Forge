@@ -6,6 +6,11 @@ from google.adk.tools.environment import EnvironmentToolset
 from ._workspace import workspace
 
 
+WRITE_FILE_DESCRIPTION = (
+    "Crée un nouveau fichier dans le dépôt (ou remplit un fichier vide). Pour modifier un "
+    "fichier existant, utilise edit_file : WriteFile y est refusé.")
+
+
 class EnvironmentSansEditFile(EnvironmentToolset):
     """Environment Toolset d'ADK sans son EditFile (remplacé par notre edit_file),
     en lecture seule si demandé (ReadFile uniquement), ou sans Execute."""
@@ -17,8 +22,13 @@ class EnvironmentSansEditFile(EnvironmentToolset):
             self.exclus.add("Execute")
 
     async def get_tools(self, readonly_context=None):
-        tools = await super().get_tools(readonly_context)
-        return [tool for tool in tools if tool.name not in self.exclus]
+        tools = [tool for tool in await super().get_tools(readonly_context) if tool.name not in self.exclus]
+        for tool in tools:
+            if tool.name == "WriteFile":
+                # La description d'ADK renvoie vers EditFile, que nous avons retiré : le modèle
+                # appelait alors cet outil inexistant.
+                tool.description = WRITE_FILE_DESCRIPTION
+        return tools
 
 
 def outils_fichiers(lecture_seule: bool = False, execute: bool = True) -> EnvironmentSansEditFile:

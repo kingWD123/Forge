@@ -18,13 +18,15 @@ from typing import Any, Literal
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
-from .tools._workspace import resolve_in_workspace
+from .consigne import DEMANDE_DE_TESTS, demande
+from .tools._workspace import est_fichier_de_test, resolve_in_workspace
 from .tools.edit_file import make_diff, prepare_edit
 
 Decision = Literal["allow", "ask", "deny"]
 
 # Outils sans effet de bord sur le dépôt.
-READ_TOOLS = {"ReadFile", "search", "outline", "run_tests", "noter_decision"}
+READ_TOOLS = {"ReadFile", "search", "outline", "run_tests", "noter_decision", "outil_inconnu",
+              "load_skill"}
 # Sous-agents appelés comme outils : ils n'agissent qu'à travers leurs propres outils.
 AGENT_TOOLS = {"evaluateur_agent", "forgeron_agent", "banc_essai_agent", "verificateur_agent",
                "explorateur", "diagnostiqueur", "migrateur", "redacteur_tests",
@@ -54,6 +56,13 @@ _CHAINING = re.compile(r"&&|\|\||[;|<>`]|\$\(")
 def permission_mode() -> str:
     mode = os.getenv("FORGE_PERMISSION_MODE", "ask").strip().lower()
     return mode if mode in ("ask", "auto-edit", "auto") else "ask"
+
+
+def _fichier_existe(chemin: str) -> bool:
+    try:
+        return resolve_in_workspace(chemin).is_file()
+    except ValueError:
+        return False
 
 
 def _fichier_non_vide(chemin: str) -> bool:
@@ -159,3 +168,24 @@ def autoriser(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -
                      "demande-lui comment procéder.",
         }
     return None
+
+
+def proteger_les_tests(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
+    """L'Atelier ne modifie pas un fichier de tests existant, sauf si l'utilisateur demande des
+    tests : un test qui échoue signale un bug dans le code. Créer un nouveau fichier de tests
+    reste possible (ex. un test qui reproduit le bug)."""
+    if tool.name not in WRITE_TOOLS:
+        return None
+    chemin = str(args.get("path", ""))
+    if not (est_fichier_de_test(chemin) and _fichier_existe(chemin)) or demande(DEMANDE_DE_TESTS, tool_context):
+        return None
+    return {"status": "error",
+            "error": f"Refusé : {chemin} est un fichier de tests existant, et la consigne ne demande pas de "
+                     "modifier les tests. Un test qui échoue signale un bug dans le code source : corrige "
+                     "le code qui produit la valeur reçue, pas le test."}
+
+
+def autoriser_atelier(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
+    """before_tool_callback de l'Atelier : protection des tests, puis autorisations habituelles."""
+    return proteger_les_tests(tool, args, tool_context) or autoriser(tool, args, tool_context)
+

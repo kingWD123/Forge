@@ -23,7 +23,8 @@ def depot(tmp_path, monkeypatch):
 def test_outils_et_schema():
     outils = {t.name for t in asyncio.run(redacteur_tests.canonical_tools())}
     # Pas d'Execute : pas de shell pour celui qui n'écrit que des tests.
-    assert outils == {"search", "outline", "edit_file", "run_tests", "ReadFile", "WriteFile"}
+    assert outils == {"search", "outline", "edit_file", "run_tests", "ReadFile", "WriteFile",
+                      "outil_inconnu"}
     assert redacteur_tests.output_schema is RapportTests
 
 

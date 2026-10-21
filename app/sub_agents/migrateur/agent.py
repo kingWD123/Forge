@@ -10,7 +10,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from ...context.troncature import tronquer_sorties
 from ...permissions import autoriser
-from ...tools import edit_file, outils_fichiers, outline, search
+from ...tools import edit_file, outil_inconnu, outils_fichiers, outline, search
 from . import prompt
 from .schema import RapportMigration
 
@@ -33,12 +33,13 @@ migrateur = LlmAgent(
     model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
     name="migrateur",
     description=(
-        "Applique une règle de transformation (renommage, API remplacée...) à UN fichier, "
-        "toutes occurrences comprises (chaînes et commentaires aussi). Appelle-le une fois par "
-        "fichier, en donnant le chemin du fichier, la règle et un exemple."
+        "QUAND : seulement pour appliquer une règle à UN fichier précis ; pour une migration dans "
+        "plusieurs fichiers, appelle migrer_partout. QUOI : applique la règle (renommage, API "
+        "remplacée...) à toutes les occurrences du fichier, chaînes et commentaires compris. "
+        "DONNE-LUI : le chemin du fichier, la règle et un exemple."
     ),
     instruction=prompt.MIGRATEUR_PROMPT,
-    tools=[search, outline, edit_file, outils_fichiers(lecture_seule=True)],
+    tools=[search, outline, edit_file, outils_fichiers(lecture_seule=True), outil_inconnu],
     # Il ne modifie que le fichier confié ; les autorisations habituelles s'appliquent ensuite.
     before_tool_callback=limiter_au_fichier_confie,
     output_schema=RapportMigration,

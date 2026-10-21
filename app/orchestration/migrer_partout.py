@@ -13,6 +13,7 @@ import re
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.tool_context import ToolContext
 
+from ..consigne import DEMANDE_DE_MIGRATION, demande
 from ..sub_agents.migrateur import migrateur
 from ..tools import search
 
@@ -30,6 +31,10 @@ def motif(ancien: str) -> str:
     if re.search(r"\w$", ancien):
         m = m + r"\b"
     return m
+
+
+def consigne_demande_migration(tool_context: ToolContext) -> bool:
+    return demande(DEMANDE_DE_MIGRATION, tool_context)
 
 
 def _exclu(chemin: str, exclure: list[str]) -> bool:
@@ -82,9 +87,13 @@ async def migrer_partout(
     glob: str = "",
     exclure: list[str] | None = None,
 ) -> dict:
-    """Migre un code dans TOUT le dépôt : renommage, API remplacée, import déplacé...
-    Trouve les fichiers qui contiennent l'ancien code, confie chacun à un migrateur
-    (en parallèle), puis vérifie qu'il ne reste plus l'ancien code.
+    """QUAND : dès que la consigne demande de renommer, migrer ou remplacer quelque chose
+    partout (pas pour corriger un bug) ; ne fais pas ces modifications toi-même.
+    QUOI : migre le code dans TOUT le dépôt (renommage, API remplacée, import déplacé...) :
+    trouve les fichiers qui contiennent l'ancien code, confie chacun à un migrateur (en
+    parallèle), puis vérifie qu'il ne reste plus l'ancien code.
+    DONNE-LUI : l'ancien et le nouveau code, la règle, et dans exclure les fichiers à ne
+    pas toucher (ceux que la consigne protège, les tests).
 
     Args:
       ancien: l'ancien code tel qu'il apparaît dans les fichiers (ex. "internalcode").
@@ -105,6 +114,12 @@ async def migrer_partout(
       occurrences_restantes : les lignes qui contiennent encore l'ancien code ;
       ensuite : ce qu'il te reste à faire.
     """
+    if not consigne_demande_migration(tool_context):
+        # Corriger un bug n'est pas une migration : ce sont des modifications à faire une à une.
+        return {"status": "error",
+                "error": "migrer_partout ne sert que si l'utilisateur demande de renommer, migrer ou "
+                         "remplacer quelque chose partout, ce que la consigne ne demande pas. Fais tes "
+                         "modifications toi-même avec edit_file."}
     exclure = exclure or []
     a_migrer = inventaire(ancien, path, glob, exclure)
     if not a_migrer:
