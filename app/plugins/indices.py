@@ -21,7 +21,7 @@ from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
-from .consigne import DEMANDE_DE_MIGRATION, demande
+from app.consigne import DEMANDE_DE_MIGRATION, demande
 
 SEUIL_ECHECS = 5
 SEUIL_FICHIERS = 2

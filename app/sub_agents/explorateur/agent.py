@@ -6,6 +6,7 @@ from google.adk.agents import LlmAgent
 
 from ...context.references import references
 from ...context.troncature import tronquer_sorties
+from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import git_lecture, list_files, outil_inconnu, outils_fichiers, outline, search
 from . import prompt
 from .schema import RapportExploration
@@ -20,7 +21,7 @@ explorateur = LlmAgent(
         "(où est le code, comment il marche, qui l'utilise, conventions du projet). DONNE-LUI : une "
         "question précise, et la profondeur : rapide (localiser) ou approfondie (inventaire complet)."
     ),
-    instruction=prompt.EXPLORATEUR_PROMPT,
+    instruction=prompt.EXPLORATEUR_PROMPT + FRONTIERE_DES_PREUVES,
     tools=[search, references, list_files, outline, git_lecture, outils_fichiers(lecture_seule=True), outil_inconnu],
     # Réponse finale validée par ADK : les outils restent utilisables pendant l'exploration.
     output_schema=RapportExploration,

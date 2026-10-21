@@ -9,6 +9,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from ...context.troncature import tronquer_sorties
 from ...permissions import WRITE_TOOLS, autoriser
+from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import edit_file, outil_inconnu, outils_fichiers, outline, run_tests, search
 from ...tools._workspace import est_fichier_de_test
 from . import prompt
@@ -34,7 +35,7 @@ redacteur_tests = LlmAgent(
         "signale les bugs qu'ils révèlent. DONNE-LUI : le module ou le comportement à couvrir, ce "
         "qui est attendu et les contraintes de la consigne."
     ),
-    instruction=prompt.REDACTEUR_TESTS_PROMPT,
+    instruction=prompt.REDACTEUR_TESTS_PROMPT + FRONTIERE_DES_PREUVES,
     # Pas d'Execute : il lance les tests avec run_tests, et n'a pas besoin du shell.
     tools=[search, outline, edit_file, run_tests, outils_fichiers(execute=False), outil_inconnu],
     before_tool_callback=limiter_aux_tests,

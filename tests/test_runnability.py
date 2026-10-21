@@ -41,7 +41,7 @@ def test_app_avec_reflect_and_retry():
 
     assert app.root_agent is root_agent
     assert [type(p).__name__ for p in app.plugins] == ["ReflectAndRetryToolPlugin", "RedirectionOutilsInconnus",
-                                                       "IndicesCibles"]
+                                                       "IndicesCibles", "VerificationApresEcriture"]
 
 
 def test_sans_specialistes_configurations_a_et_b():

@@ -82,6 +82,15 @@ def nombre_masquees(contents):
     return sum("sortie retirée" in texte_reponse(c) for c in contents if c.parts[0].function_response)
 
 
+def test_skill_ouverte_jamais_masquee(monkeypatch):
+    # Les instructions d'une skill servent jusqu'au bout : même vieilles, elles restent.
+    contents = [consigne("migre tout"), appel("s", "load_skill", skill_name="migration"),
+                reponse("s", "load_skill")] + recherches(20)[1:]
+    resultat = compiler_requete(contents, monkeypatch)
+    assert GROS in texte_reponse(resultat[2])                           # la skill, la plus ancienne
+    assert "ancienne" in texte_reponse(resultat[4])                     # la recherche suivante, elle, part
+
+
 def test_vieilles_sorties_masquees_recentes_gardees(monkeypatch):
     # 17 sorties : 7 de trop par rapport aux 10 gardées -> un paquet de 5 masqué.
     resultat = compiler_requete(recherches(17), monkeypatch)

@@ -41,6 +41,8 @@ GARDER_EN_URGENCE = 3
 TAILLE_MINIMALE = 300      # on ne masque pas une sortie déjà courte
 LECTURES = {"ReadFile", "outline"}
 ECRITURES = {"edit_file", "WriteFile"}
+# Jamais masquées : les instructions d'une skill ouverte servent jusqu'à la fin de la tâche.
+JAMAIS_MASQUEES = {"load_skill"}
 
 
 def compiler(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
@@ -88,6 +90,8 @@ def masquer_sorties_inutiles(contents: list[types.Content]) -> None:
         frontiere, raison_age = max(len(sorties) - GARDER_RECENTES, 0) // PAQUET * PAQUET, "ancienne"
 
     for position, (i, j, nom, args) in enumerate(sorties):
+        if nom in JAMAIS_MASQUEES:
+            continue
         raison = raison_immediate(nom, args, sorties[position + 1:])
         if not raison and position < frontiere:
             raison = raison_age

@@ -13,7 +13,8 @@ from google.adk.tools.skill_toolset import SkillDiscoveryMode, SkillToolset
 from google.genai import types
 
 from . import prompt
-from .indices import IndicesCibles
+from app.plugins.indices import IndicesCibles
+from app.plugins.verification import VerificationApresEcriture
 from .orchestration.migrer_partout import migrer_partout
 from .context import compiler, noter_decision, tronquer_sorties
 from .permissions import autoriser_atelier
@@ -21,7 +22,7 @@ from .sub_agents.diagnostiqueur import diagnostiqueur
 from .sub_agents.explorateur import explorateur
 from .sub_agents.migrateur import migrateur
 from .sub_agents.redacteur_tests import redacteur_tests
-from .redirection import RedirectionOutilsInconnus
+from app.plugins.redirection import RedirectionOutilsInconnus
 from .tools import edit_file, outil_inconnu, outils_fichiers, outline, run_tests, search
 
 # Configuration C : l'Atelier a ses spécialistes (par défaut). FORGE_SPECIALISTES=off les retire,
@@ -87,5 +88,7 @@ app = App(
              # Un appel à un outil qui n'existe pas devient un appel à outil_inconnu.
              RedirectionOutilsInconnus(),
              # Indice ajouté à la sortie d'un outil quand une délégation s'impose.
-             IndicesCibles()],
+             IndicesCibles(),
+             # Juste après une modification d'un module : s'importe-t-il encore ?
+             VerificationApresEcriture()],
 )

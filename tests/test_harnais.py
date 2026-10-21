@@ -10,7 +10,7 @@ from google.adk.skills import load_skills_from_dir
 from google.genai import types
 
 from app import prompt
-from app.indices import SEUIL_ECHECS, indice_pour
+from app.plugins.indices import SEUIL_ECHECS, indice_pour
 
 SKILLS = Path(__file__).resolve().parent.parent / "app" / "skills"
 

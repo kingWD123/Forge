@@ -10,6 +10,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from ...context.troncature import tronquer_sorties
 from ...permissions import autoriser
+from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import edit_file, outil_inconnu, outils_fichiers, outline, search
 from . import prompt
 from .schema import RapportMigration
@@ -38,7 +39,7 @@ migrateur = LlmAgent(
         "remplacée...) à toutes les occurrences du fichier, chaînes et commentaires compris. "
         "DONNE-LUI : le chemin du fichier, la règle et un exemple."
     ),
-    instruction=prompt.MIGRATEUR_PROMPT,
+    instruction=prompt.MIGRATEUR_PROMPT + FRONTIERE_DES_PREUVES,
     tools=[search, outline, edit_file, outils_fichiers(lecture_seule=True), outil_inconnu],
     # Il ne modifie que le fichier confié ; les autorisations habituelles s'appliquent ensuite.
     before_tool_callback=limiter_au_fichier_confie,

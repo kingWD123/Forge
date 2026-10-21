@@ -8,7 +8,7 @@ import pytest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 
-from app.redirection import RedirectionOutilsInconnus
+from app.plugins.redirection import RedirectionOutilsInconnus
 from app.tools.outil_inconnu import alternative, outil_inconnu
 
 

@@ -6,6 +6,7 @@ from google.adk.agents import LlmAgent
 
 from ...context.references import references
 from ...context.troncature import tronquer_sorties
+from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import experimenter, git_lecture, outil_inconnu, outils_fichiers, outline, regrouper_echecs, run_tests, search
 from . import prompt
 from .schema import RapportDiagnostic
@@ -20,7 +21,7 @@ diagnostiqueur = LlmAgent(
         "rien modifier, et propose la correction, que tu "
         "appliques ensuite. DONNE-LUI : le symptôme et quelques tests en échec."
     ),
-    instruction=prompt.DIAGNOSTIQUEUR_PROMPT,
+    instruction=prompt.DIAGNOSTIQUEUR_PROMPT + FRONTIERE_DES_PREUVES,
     tools=[regrouper_echecs, run_tests, experimenter, search, references, outline, git_lecture, outil_inconnu,
            outils_fichiers(lecture_seule=True)],
     # Réponse finale validée par ADK : les outils restent utilisables pendant le diagnostic.
