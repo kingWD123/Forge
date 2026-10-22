@@ -9,7 +9,7 @@ Usage (depuis la racine du projet) :
   python -m bench.run localiser [jinja-001 ...]  l'explorateur seul retrouve-t-il le fichier décisif ?
   python -m bench.run diagnostiquer [...]        le diagnostiqueur seul trouve-t-il la cause ?
   python -m bench.run rediger [...]              le rédacteur de tests seul, jugé comme l'Atelier
-  python -m bench.run comparer                   tableau A / B / C : derniers résultats de chaque configuration
+  python -m bench.run comparer [--passes 3]      tableau A / B / C : moyenne des derniers passages complets
 
 Sans identifiant, toutes les tâches de bench/tasks/ sont prises.
 
@@ -423,23 +423,28 @@ def juger_copie_web(tache: dict) -> None:
         print(f"  fichiers interdits modifiés : {', '.join(jugement['fichiers_interdits_modifies'])}")
 
 
-def dernier_resultat(config: str) -> Path | None:
-    """Le fichier de résultats le plus récent d'une configuration (Atelier, pas un spécialiste seul)."""
-    fichiers = sorted(RESULTATS.glob(f"*-{config}.jsonl"))
-    return fichiers[-1] if fichiers else None
+def derniers_resultats(config: str, passes: int) -> list[Path]:
+    """Les `passes` derniers passages complets d'une configuration (tout le banc actif) :
+    une relance d'une seule tâche n'est pas une passe."""
+    taches = len(charger_taches([]))
+    fichiers = [f for f in sorted(RESULTATS.glob(f"*-{config}.jsonl"))
+                if len([l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]) >= taches]
+    return fichiers[-passes:]
 
 
-def comparer() -> None:
-    """Taux de résolution et coût de chaque configuration, en tout et par famille de tâches.
+def comparer(passes: int = 1) -> None:
+    """Taux de résolution et coût de chaque configuration, en tout et par famille de tâches,
+    sur les `passes` derniers passages complets (Gemini ne refait pas deux fois la même chose).
     Les tâches interrompues par une erreur (quota...) ne comptent pas dans le taux."""
     lignes = {}
     for config in sorted(CONFIGURATIONS):
-        fichier = dernier_resultat(config)
-        if fichier:
-            lignes[config] = [json.loads(l) for l in fichier.read_text(encoding="utf-8").splitlines() if l.strip()]
+        fichiers = derniers_resultats(config, passes)
+        if fichiers:
+            lignes[config] = [json.loads(l) for f in fichiers
+                              for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
             for r in lignes[config]:   # résultats enregistrés avant statut_de
                 r["statut"] = statut_de(r["statut"] == "reussi", r["agent"])
-            print(f"{config} : {fichier.name}")
+            print(f"{config} : {', '.join(f.name for f in fichiers)}")
     if not lignes:
         sys.exit("Aucun résultat : lance d'abord `python -m bench.run lancer --config A`.")
 
@@ -489,6 +494,8 @@ def main() -> None:
                              "C (+ spécialistes)")
     parser.add_argument("--traces", action="store_true",
                         help="envoie les traces vers Phoenix (serveur lancé avec `phoenix serve`)")
+    parser.add_argument("--passes", type=int, default=1,
+                        help="comparer : nombre de derniers passages complets à moyenner")
     args = parser.parse_args()
     taches = charger_taches(args.taches)
     if args.traces:
@@ -509,7 +516,7 @@ def main() -> None:
     elif args.commande == "diagnostiquer":
         diagnostiquer(taches)
     elif args.commande == "comparer":
-        comparer()
+        comparer(args.passes)
     elif args.commande == "rediger":
         evaluer([t for t in taches if t["famille"] == "ecriture_tests"], args.config, "redacteur_tests")
     else:
