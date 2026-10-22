@@ -1,6 +1,6 @@
 ---
 name: ecriture-tests
-description: Procédure quand la consigne demande d'écrire, d'ajouter ou de compléter des tests pour un module ou un comportement.
+description: Seulement quand la consigne demande explicitement d'écrire des tests pour un module ou un comportement. Jamais pour corriger un bug.
 ---
 # Écrire des tests
 

@@ -173,7 +173,12 @@ def autoriser(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -
 def proteger_les_tests(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
     """L'Atelier ne modifie pas un fichier de tests existant, sauf si l'utilisateur demande des
     tests : un test qui échoue signale un bug dans le code. Créer un nouveau fichier de tests
-    reste possible (ex. un test qui reproduit le bug)."""
+    reste possible (ex. un test qui reproduit le bug). Le rédacteur de tests n'est appelé que
+    si la consigne demande des tests : sur jinja-005, l'Atelier l'avait appelé pour un bug."""
+    if tool.name == "redacteur_tests" and not demande(DEMANDE_DE_TESTS, tool_context):
+        return {"status": "error",
+                "error": "Refusé : la consigne ne demande pas d'écrire des tests, le redacteur_tests ne "
+                         "sert pas ici. Corrige le code source et vérifie avec run_tests."}
     if tool.name not in WRITE_TOOLS:
         return None
     chemin = str(args.get("path", ""))

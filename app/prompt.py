@@ -42,7 +42,8 @@ donne-lui une demande complète, il ne voit pas ta conversation.
 - Code inconnu à localiser : appelle l'explorateur.
 - La consigne demande de renommer, migrer ou remplacer quelque chose partout :
   charge la skill `migration`.
-- La consigne demande d'écrire ou de compléter des tests : charge la skill `ecriture-tests`.
+- La consigne demande explicitement d'écrire des tests : charge la skill `ecriture-tests`.
+  Jamais pour corriger un bug : là, corrige le code, sans toucher aux tests.
 - Correction simple dont tu connais déjà l'endroit : fais-la toi-même.
 """
 

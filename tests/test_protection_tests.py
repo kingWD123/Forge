@@ -73,3 +73,9 @@ def test_creer_un_nouveau_fichier_de_tests_reste_possible(depot):
 def test_le_code_source_et_les_lectures_ne_sont_pas_concernes(depot):
     assert proteger_les_tests(*edition("src/compiler.py"), CORRIGE_LE_BUG) is None
     assert proteger_les_tests(SimpleNamespace(name="ReadFile"), {"path": "tests/test_api.py"}, CORRIGE_LE_BUG) is None
+
+
+def test_redacteur_tests_seulement_si_la_consigne_demande_des_tests(depot):
+    redacteur = SimpleNamespace(name="redacteur_tests")
+    assert proteger_les_tests(redacteur, {"request": "x"}, CORRIGE_LE_BUG)["status"] == "error"
+    assert proteger_les_tests(redacteur, {"request": "x"}, session("Écris des tests pour meta.py.")) is None
