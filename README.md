@@ -17,6 +17,7 @@ app/
   agent.py, prompt.py   l'Atelier (root_agent)
   tools/                read_file, search, edit_file, bash, run_tests, git
   context/              Compilateur de contexte
+  agents_forges/        fiche d'un sous-agent forgé (schéma) et chargeur -> LlmAgent
   registry.py           Registre .forge/agents
   sub_agents/
     evaluateur/         décide s'il faut déléguer
@@ -27,4 +28,5 @@ eval/                   évaluation ADK
 tests/
 deployment/
 .forge/agents/          sous-agents forgés
+.forge/skills/          skills forgées pour le dépôt
 ```
