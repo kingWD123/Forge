@@ -14,6 +14,7 @@ from ...tools import edit_file, outil_inconnu, outils_fichiers, outline, run_tes
 from ...tools._workspace import est_fichier_de_test
 from . import prompt
 from .schema import RapportTests
+from ..rapport import rapport_par_set_model_response
 
 
 def limiter_aux_tests(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
@@ -41,4 +42,6 @@ redacteur_tests = LlmAgent(
     before_tool_callback=limiter_aux_tests,
     output_schema=RapportTests,
     after_tool_callback=tronquer_sorties,
+    # Rapport rendu en texte : repassé par set_model_response, où le schéma est validé.
+    after_model_callback=rapport_par_set_model_response,
 )

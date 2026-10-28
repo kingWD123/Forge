@@ -10,6 +10,7 @@ from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import git_lecture, list_files, outil_inconnu, outils_fichiers, outline, search
 from . import prompt
 from .schema import RapportExploration
+from ..rapport import rapport_par_set_model_response
 
 explorateur = LlmAgent(
     # EXPLORATEUR_MODEL permet d'essayer un modèle plus rapide et moins cher pour l'exploration.
@@ -26,4 +27,6 @@ explorateur = LlmAgent(
     # Réponse finale validée par ADK : les outils restent utilisables pendant l'exploration.
     output_schema=RapportExploration,
     after_tool_callback=tronquer_sorties,
+    # Rapport rendu en texte : repassé par set_model_response, où le schéma est validé.
+    after_model_callback=rapport_par_set_model_response,
 )

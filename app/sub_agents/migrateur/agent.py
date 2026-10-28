@@ -14,6 +14,7 @@ from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import edit_file, outil_inconnu, outils_fichiers, outline, search
 from . import prompt
 from .schema import RapportMigration
+from ..rapport import rapport_par_set_model_response
 
 
 def limiter_au_fichier_confie(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext) -> dict | None:
@@ -45,4 +46,6 @@ migrateur = LlmAgent(
     before_tool_callback=limiter_au_fichier_confie,
     output_schema=RapportMigration,
     after_tool_callback=tronquer_sorties,
+    # Rapport rendu en texte : repassé par set_model_response, où le schéma est validé.
+    after_model_callback=rapport_par_set_model_response,
 )

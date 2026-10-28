@@ -1,5 +1,6 @@
 """Format de la réponse du diagnostiqueur, validé par ADK (output_schema)."""
 
+import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -30,6 +31,16 @@ class Cause(BaseModel):
                 "qui échoue signale un bug dans le code ; cherche quel code source produit la valeur "
                 "reçue (search, references, git_lecture), puis donne ce fichier.")
         return chemin
+
+    @field_validator("lignes")
+    @classmethod
+    def des_numeros_de_ligne(cls, lignes: str) -> str:
+        # « Non identifiées » n'est pas un diagnostic : la ligne se trouve en lisant le code.
+        if not re.fullmatch(r"\d+(\s*-\s*\d+)?", lignes.strip()):
+            raise ValueError(
+                f"« {lignes} » n'est pas une ligne. Donne le numéro de la ligne en cause ou une plage "
+                "(ex. 1447 ou 1440-1450), lue avec ReadFile dans le fichier que tu désignes.")
+        return lignes.strip()
 
 
 class RapportDiagnostic(BaseModel):

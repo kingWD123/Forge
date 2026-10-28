@@ -10,6 +10,7 @@ from ...prompt import FRONTIERE_DES_PREUVES
 from ...tools import experimenter, git_lecture, outil_inconnu, outils_fichiers, outline, regrouper_echecs, run_tests, search
 from . import prompt
 from .schema import RapportDiagnostic
+from ..rapport import rapport_par_set_model_response
 
 diagnostiqueur = LlmAgent(
     model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
@@ -27,4 +28,6 @@ diagnostiqueur = LlmAgent(
     # Réponse finale validée par ADK : les outils restent utilisables pendant le diagnostic.
     output_schema=RapportDiagnostic,
     after_tool_callback=tronquer_sorties,
+    # Rapport rendu en texte : repassé par set_model_response, où le schéma est validé.
+    after_model_callback=rapport_par_set_model_response,
 )
